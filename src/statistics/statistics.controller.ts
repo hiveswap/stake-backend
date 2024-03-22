@@ -1,11 +1,12 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from 'src/prisma.service';
 import { retry } from 'src/utils/retry';
 import configurations from '../config/configurations';
 import { CurrentCreditDto, HistoryCreditDto } from './dto/credit.dto';
+import { AuthGuard } from '../auth/auth.guard';
 
-@Controller('Statisctics')
+@Controller('statisctics')
 export class StatisticsController {
   retryTimes: number;
   retryInterval: number;
@@ -13,6 +14,7 @@ export class StatisticsController {
     this.retryTimes = configurations().retryTimes;
     this.retryInterval = configurations().retryInterval;
   }
+  @UseGuards(AuthGuard)
   @Get('history')
   @ApiOperation({ summary: 'Get the credit history of a user' })
   @ApiTags('historyCredit')
@@ -56,6 +58,7 @@ export class StatisticsController {
     );
   }
 
+  @UseGuards(AuthGuard)
   @Get('current')
   @ApiOperation({ summary: 'Get the latest credit of a user' })
   @ApiTags('latestCredit')
