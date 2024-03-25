@@ -17,10 +17,9 @@ export class StatisticsService {
 
   // traverse the raw event data, update history credit and current credit.
   // worked at 00:00 everyday in Singapore time
-  // @Cron('* 0 0 * * 1-7', {
-  //   timeZone: 'Asia/Singapore',
-  // })
-  @Cron('10 * * * * *')
+  @Cron('* 0 0 * * 1-7', {
+    timeZone: 'Asia/Singapore',
+  })
   async update() {
     const curTime = DateTime.now().setZone('Asia/Singapore');
 
