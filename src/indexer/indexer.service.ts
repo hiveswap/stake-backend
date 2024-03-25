@@ -7,6 +7,7 @@ import { RawEvents } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class IndexerService {
@@ -14,7 +15,7 @@ export class IndexerService {
   retryInterval: number;
   retryTimes: number;
   contract: Contract;
-  latestBlockId: string;
+  latestBlockId: number;
 
   constructor(private readonly prisma: PrismaService) {
     const fetchReq = new FetchRequest(configurations().rpcUrl);
@@ -37,7 +38,7 @@ export class IndexerService {
     let startBlock = configurations().startBlockNum;
     Logger.log(`Indexer starts to work at block[${startBlock}]`, 'Indexer');
     // get the synced block number, if not found in db, create it
-    const indexedBlockNum = await this.prisma.indexedBlock.findFirst({});
+    const indexedBlockNum = await this.prisma.indexedRecord.findFirst({});
     if (indexedBlockNum) {
       startBlock = indexedBlockNum.blockNumber + 1;
       Logger.log(
@@ -46,8 +47,11 @@ export class IndexerService {
       );
       this.latestBlockId = indexedBlockNum.id;
     } else {
-      const insertRes = await this.prisma.indexedBlock.create({
-        data: { blockNumber: startBlock },
+      const insertRes = await this.prisma.indexedRecord.create({
+        data: {
+          blockNumber: startBlock,
+          updateTime: DateTime.now().setZone('Asia/Singapore').toJSDate(),
+        },
       });
       this.latestBlockId = insertRes.id;
     }
@@ -151,13 +155,11 @@ export class IndexerService {
           log.topics,
         );
         events.push({
-          id: '',
+          id: 0,
           timestamp: new Date(),
-          blockNum: log.blockNumber,
           userAddr: parsed.user,
           amount: parsed.userInfo.amount.toString(),
           tokenAddr: parsed.userInfo.tokenAddr,
-          lpToken: parsed.userInfo.lpToken.toString(),
         });
       });
       resolve(events);
@@ -165,7 +167,7 @@ export class IndexerService {
   }
 
   async #updateLatestBlock(update: { blockNumber: number }) {
-    await this.prisma.indexedBlock.update({
+    await this.prisma.indexedRecord.update({
       data: update,
       where: {
         id: this.latestBlockId,

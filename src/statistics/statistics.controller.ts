@@ -1,7 +1,7 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PrismaService } from 'src/prisma.service';
-import { retry } from 'src/utils/retry';
+import { PrismaService } from '../prisma.service';
+import { retry } from '../utils/retry';
 import configurations from '../config/configurations';
 import { CurrentCreditDto, HistoryCreditDto } from './dto/credit.dto';
 import { AuthGuard } from '../auth/auth.guard';
@@ -81,7 +81,7 @@ export class StatisticsController {
   })
   latestCredit(@Param() params: CurrentCreditDto) {
     return retry(
-      this.prisma.creditHistory.findFirst,
+      this.prisma.credits.findFirst,
       this.retryTimes,
       this.retryInterval,
       this,

@@ -9,34 +9,33 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model RawEvents {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int      @id @default(autoincrement())
   timestamp DateTime
-  blockNum  Int
   userAddr  String
   amount    String
   tokenAddr String
-  lpToken   String
 }
 
 model Credits {
-  userAddr  String   @id @map("_id")
+  userAddr  String   @id
   curCredit Int
   timestamp DateTime
 }
 
 model CreditHistory {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int      @id @default(autoincrement())
   userAddr  String
   timestamp DateTime
   credit    Int
 }
 
-model IndexedBlock {
-  id          String @id @default(auto()) @map("_id") @db.ObjectId
+model IndexedRecord {
+  id          Int      @id @default(autoincrement())
   blockNumber Int
+  updateTime  DateTime
 }

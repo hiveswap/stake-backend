@@ -23,4 +23,5 @@ export default () => ({
   ),
   rpcUrl: process.env.CHAIN_RPC_URL || '',
   httpsProxy: process.env.HTTPS_PROXY || '',
+  scores: process.env.TOTAL_SCORE_PER_DAY || 10,
 });
