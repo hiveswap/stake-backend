@@ -6,6 +6,10 @@ import { DateTime } from 'luxon';
 
 describe('StatisticsController', () => {
   let appController: StatisticsController;
+  const mockData = {
+    timestamp: DateTime.fromISO('2024-03-25T03:50:10.010Z').toJSDate(),
+    curCredit: 10000,
+  };
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
@@ -14,16 +18,16 @@ describe('StatisticsController', () => {
     }).compile();
 
     appController = app.get<StatisticsController>(StatisticsController);
+    const prisma = app.get<PrismaService>(PrismaService);
+    prisma.creditHistory.findMany = jest.fn().mockReturnValueOnce([mockData]);
+    prisma.credits.findFirst = jest.fn().mockReturnValueOnce(mockData);
   });
 
   describe('root', () => {
     it('should return latest credit', async () => {
       const param = new CurrentCreditDto();
       param.user = '0x0094d7caC1AeaFc2d87E2DF6B97F2400B0527522';
-      expect(await appController.latestCredit(param)).toEqual({
-        timestamp: DateTime.fromISO('2024-03-25T03:50:10.010Z').toJSDate(),
-        curCredit: 10000,
-      });
+      expect(await appController.latestCredit(param)).toEqual(mockData);
     });
 
     it('should return credit history', async () => {
@@ -31,12 +35,7 @@ describe('StatisticsController', () => {
       param.user = '0x0094d7caC1AeaFc2d87E2DF6B97F2400B0527522';
       param.pageSize = 10;
       param.currentPage = 1;
-      expect(await appController.historyCredit(param)).toEqual([
-        {
-          timestamp: DateTime.fromISO('2024-03-25T03:50:10.010Z').toJSDate(),
-          credit: 10000,
-        },
-      ]);
+      expect(await appController.historyCredit(param)).toEqual([mockData]);
     });
   });
 });
