@@ -4,7 +4,7 @@ type Func<T extends any[], U> = (...input: T) => Promise<U>;
 
 export async function retry<T extends any[], U>(
   func: Func<T, U>,
-  retryTimes = 10,
+  retryTimes = 1000,
   retryInterval = 1000,
   context: any,
   ...args: T

@@ -14,28 +14,21 @@ datasource db {
 }
 
 model RawStakeEvents {
-  id         Int      @id @default(autoincrement())
-  timestamp  DateTime
-  userAddr   String
-  amount     String
-  tokenAddr  String
-  lTokenAddr String
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime
+  userAddr  String
+  amount    String
+  tokenAddr String
 }
 
 model RawAddLiquidityEvents {
-  id             Int      @id @default(autoincrement())
-  timestamp      DateTime
-  nftID          String
-  pool           String
-  liquidityDelta String
-  amountX        String
-  amountY        String
-}
-
-model TokenMap {
-  id         Int    @id @default(autoincrement())
-  tokenAddr  String @unique
-  lTokenAddr String @unique
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime
+  userAddr  String
+  tokenX    String
+  tokenY    String
+  amountX   String
+  amountY   String
 }
 
 model Credits {

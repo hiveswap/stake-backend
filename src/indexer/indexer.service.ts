@@ -3,19 +3,17 @@ import { PrismaService } from '../prisma.service';
 import {
   JsonRpcProvider,
   Contract,
-  EventFragment,
   FetchRequest,
-  Log,
+  Interface,
+  Wallet,
 } from 'ethers';
 import { liquidityAbi, stakeAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
-import { RawStakeEvents, RawAddLiquidityEvents, Prisma } from '@prisma/client';
+import { RawAddLiquidityEvents, RawStakeEvents } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
-
-type RawEvents = RawStakeEvents | RawAddLiquidityEvents;
 
 @Injectable()
 export class IndexerService {
@@ -25,6 +23,7 @@ export class IndexerService {
   stakeContract: Contract;
   liquidityContract: Contract;
   latestBlockId: number;
+  wallet: Wallet;
 
   constructor(private readonly prisma: PrismaService) {
     const fetchReq = new FetchRequest(configurations().rpcUrl);
@@ -34,6 +33,8 @@ export class IndexerService {
       });
     }
     this.provider = new JsonRpcProvider(fetchReq);
+    this.wallet = new Wallet(configurations().privateKey, this.provider);
+
     this.retryInterval = configurations().retryInterval;
     this.retryTimes = configurations().retryTimes;
     this.stakeContract = new Contract(
@@ -43,6 +44,7 @@ export class IndexerService {
     this.liquidityContract = new Contract(
       configurations().liquidityContractAddr,
       liquidityAbi,
+      this.wallet,
     );
   }
 
@@ -71,16 +73,9 @@ export class IndexerService {
       });
       this.latestBlockId = insertRes.id;
     }
-    const stakeTopic = this.stakeContract.interface.getEvent('Stake');
-    if (!stakeTopic) {
-      throw new Error('Stake event not found');
-    }
+    const stakeTopic = new Interface(stakeAbi);
 
-    const liquidityTopic =
-      this.liquidityContract.interface.getEvent('AddLiquidity');
-    if (!liquidityTopic) {
-      throw new Error('AddLiquidity event not found');
-    }
+    const liquidityInput = new Interface(liquidityAbi);
 
     while (true) {
       // sleep a while, in case too many requests
@@ -99,135 +94,125 @@ export class IndexerService {
         continue;
       }
       Logger.log(`Get latest block[${latestBlockNum}]`, 'Indexer');
-      // parse logs from startBlock to latest block number
-      const stakeSuccess = await this.#parseLogs(
-        startBlock,
-        latestBlockNum,
-        stakeTopic,
-        this.stakeContract,
-      );
-      const liquiditSuccess = await this.#parseLogs(
-        startBlock,
-        latestBlockNum,
-        liquidityTopic,
-        this.liquidityContract,
-      );
-      if (!stakeSuccess && !liquiditSuccess) {
-        if (startBlock < latestBlockNum) {
-          await retry(
-            this.#updateLatestBlock,
-            this.retryTimes,
-            this.retryInterval,
-            this,
-            {
-              blockNumber: latestBlockNum,
-            },
-          );
-          Logger.log(
-            `Update synced block to ${latestBlockNum} success`,
-            'Indexer',
-          );
-          startBlock = latestBlockNum;
-        }
-        continue;
-      }
+      const step = 20;
+      for (let i = startBlock; i <= latestBlockNum; i = i + step) {
+        const endBlock = i + step - 1;
+        // parse logs from startBlock to latest block number
+        await this.#parseLogs(i, endBlock, stakeTopic, liquidityInput);
 
-      // update parsed blockNumber
-      startBlock = latestBlockNum;
-      await retry(
-        this.#updateLatestBlock,
-        this.retryTimes,
-        this.retryInterval,
-        this,
-        {
-          blockNumber: latestBlockNum,
-        },
-      );
-      Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
+        // update parsed blockNumber
+        await retry(
+          this.#updateLatestBlock,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          {
+            blockNumber: endBlock,
+          },
+        );
+        Logger.log(
+          `Update synced block from ${i} to ${endBlock} success`,
+          'Indexer',
+        );
+      }
     }
   }
 
   async #parseLogs(
     startBlock: number,
     latestBlockNum: number,
-    topic: EventFragment,
-    contract: Contract,
+    stakeTopic: Interface,
+    liquidityInput: Interface,
   ): Promise<boolean> {
     return new Promise(async (resolve) => {
-      const logs = await retry(
-        this.provider.getLogs,
-        this.retryTimes,
-        this.retryInterval,
-        this.provider,
-        {
-          fromBlock: startBlock,
-          toBlock: latestBlockNum,
-          address: this.stakeContract.target,
-          topics: [topic.topicHash],
-        },
-      );
+      const stakeEvents: RawStakeEvents[] = [];
+      const liquidityEvents: RawAddLiquidityEvents[] = [];
+      for (let i = startBlock; i <= latestBlockNum; i++) {
+        const block = await this.provider.getBlock(i, true);
+        block?.prefetchedTransactions.forEach(async (prefetchTx) => {
+          if (prefetchTx?.to == this.stakeContract.target) {
+            const txReceipt = await this.provider.getTransactionReceipt(
+              prefetchTx.hash,
+            );
+            txReceipt?.logs.forEach((log) => {
+              try {
+                const parsed = stakeTopic.parseLog(log);
 
-      if (!logs || logs.length === 0) {
-        return resolve(false);
+                if (parsed?.name === 'Stake') {
+                  stakeEvents.push({
+                    id: 0,
+                    timestamp: new Date(),
+                    userAddr: parsed?.args[0],
+                    amount: parsed?.args[2].toString(),
+                    tokenAddr: parsed?.args[1],
+                  });
+                  Logger.log(`parsed Stake event from block ${i} success`);
+                }
+              } catch (error) {
+                return;
+              }
+            });
+          } else if (prefetchTx?.to == this.liquidityContract.target) {
+            try {
+              const parsed = liquidityInput.parseTransaction(prefetchTx);
+              if (parsed?.name === 'Mint') {
+                liquidityEvents.push({
+                  id: 0,
+                  timestamp: new Date(),
+                  userAddr: prefetchTx.from,
+                  tokenX: parsed?.args[1],
+                  tokenY: parsed?.args[2],
+                  amountX: parsed?.args[6],
+                  amountY: parsed?.args[7],
+                });
+              } else if (parsed?.name === 'addLiquidity') {
+                const nft = parsed.args[0];
+                const poolInfo = await this.liquidityContract.poolMetas(nft);
+                liquidityEvents.push({
+                  id: 0,
+                  timestamp: new Date(),
+                  userAddr: prefetchTx.from,
+                  tokenX: poolInfo[0],
+                  tokenY: poolInfo[1],
+                  amountX: parsed?.args[6],
+                  amountY: parsed?.args[7],
+                });
+              }
+            } catch (err) {
+              return;
+            }
+          }
+        });
       }
 
-      const events: Array<RawEvents> = [];
-      logs.forEach((log) => {
-        if (contract.target === this.stakeContract.target) {
-          events.push(this.#decodeLog(this.stakeContract, topic, log));
-        } else if (contract.target === this.liquidityContract.target) {
-          events.push(this.#decodeLog(this.liquidityContract, topic, log));
-        }
-        resolve(this.#writeToDB(events, startBlock, latestBlockNum));
-      });
+      resolve(this.#writeToDB(stakeEvents, liquidityEvents));
     });
   }
 
-  #decodeLog(contract: Contract, topic: EventFragment, log: Log): RawEvents {
-    const parsed = contract.interface.decodeEventLog(
-      topic,
-      log.data,
-      log.topics,
-    );
-    if (contract.target === this.stakeContract.target) {
-      return {
-        id: 0,
-        timestamp: new Date(),
-        userAddr: parsed.user,
-        amount: parsed.amount,
-        tokenAddr: parsed.token,
-        lTokenAddr: parsed.lToken,
-      } as RawStakeEvents;
-    }
-    return {
-      id: 0,
-      timestamp: new Date(),
-      nftID: parsed.nftId,
-      pool: parsed.pool,
-      liquidityDelta: parsed.liquidityDelta,
-      amountX: parsed.amountX,
-      amountY: parsed.amountY,
-    } as RawAddLiquidityEvents;
-  }
-
   async #writeToDB(
-    events: Array<RawEvents>,
-    startBlock: number,
-    latestBlockNum: number,
+    stakeEvents: Array<RawStakeEvents>,
+    liquidityEvents: Array<RawAddLiquidityEvents>,
   ): Promise<boolean> {
     return new Promise(async (resolve) => {
       // update parsed events
-      await retry(
-        this.#updateEvents,
-        this.retryTimes,
-        this.retryInterval,
-        this,
-        events,
-      );
-      Logger.log(
-        `Parsed ${events.length} events from block ${startBlock} to block ${latestBlockNum}`,
-        'Indexer',
-      );
+      if (stakeEvents.length !== 0) {
+        await retry(
+          this.#updateEvents,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          stakeEvents,
+        );
+      }
+      if (liquidityEvents.length !== 0) {
+        await retry(
+          this.#updateEvents,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          liquidityEvents,
+        );
+      }
       Logger.log(`write events to db success`);
       resolve(true);
     });
@@ -248,29 +233,11 @@ export class IndexerService {
         return;
       }
       if ('userAddr' in events[0]) {
-        const txs: Prisma.PrismaPromise<any>[] = [];
-        txs.push(
+        resolve(
           this.prisma.rawStakeEvents.createMany({
             data: events as RawStakeEvents[],
           }),
         );
-        events.forEach((event: RawStakeEvents) => {
-          txs.push(
-            this.prisma.tokenMap.upsert({
-              create: {
-                tokenAddr: event.tokenAddr,
-                lTokenAddr: event.lTokenAddr,
-              },
-              where: {
-                tokenAddr: event.tokenAddr,
-              },
-              update: {
-                lTokenAddr: event.lTokenAddr,
-              },
-            }),
-          );
-        });
-        resolve(this.prisma.$transaction(txs));
         return;
       }
       resolve(
