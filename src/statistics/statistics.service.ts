@@ -48,7 +48,7 @@ export class StatisticsService {
 
   async #getAndParse(startTime: DateTime, endTime: DateTime) {
     const rawData = await retry(
-      this.prisma.rawEvents.findMany,
+      this.prisma.rawStakeEvents.findMany,
       this.retryTimes,
       this.retryInterval,
       this,

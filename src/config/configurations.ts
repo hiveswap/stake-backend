@@ -16,7 +16,8 @@ export default () => ({
     process.env.RETRY_TIMES ? process.env.RETRY_TIMES : '10',
     10,
   ),
-  contractAddr: process.env.CONTRACT_ADDR || '',
+  stakeContractAddr: process.env.STAKE_CONTRACT_ADDR || '',
+  liquidityContractAddr: process.env.LIQUIDITY_CONTRACT_ADDR || '',
   startBlockNum: parseInt(
     process.env.DEPLOY_BLOCK_NUMBER ? process.env.DEPLOY_BLOCK_NUMBER : '1',
     10,
