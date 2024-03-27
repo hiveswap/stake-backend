@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service';
 import { retry } from '../utils/retry';
@@ -38,8 +38,8 @@ export class StatisticsController {
       },
     },
   })
-  historyCredit(@Param() params: HistoryCreditDto) {
-    return retry(
+  async historyCredit(@Body() params: HistoryCreditDto) {
+    return await retry(
       this.prisma.creditHistory.findMany,
       this.retryTimes,
       this.retryInterval,
@@ -79,8 +79,8 @@ export class StatisticsController {
       },
     },
   })
-  latestCredit(@Param() params: CurrentCreditDto) {
-    return retry(
+  async latestCredit(@Body() params: CurrentCreditDto) {
+    return await retry(
       this.prisma.credits.findFirst,
       this.retryTimes,
       this.retryInterval,
