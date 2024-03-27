@@ -9,6 +9,22 @@ export const stakeAbi = [
   },
   {
     type: 'function',
+    name: 'lock',
+    inputs: [
+      { name: 'token', type: 'address', internalType: 'contract IERC20' },
+      { name: 'amount', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [
+      {
+        name: 'lTokenAddress',
+        type: 'address',
+        internalType: 'contract ILToken',
+      },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'owner',
     inputs: [],
     outputs: [{ name: '', type: 'address', internalType: 'address' }],
@@ -33,18 +49,9 @@ export const stakeAbi = [
   },
   {
     type: 'function',
-    name: 'stake',
-    inputs: [
-      { name: 'token', type: 'address', internalType: 'contract IERC20' },
-      { name: 'amount', type: 'uint256', internalType: 'uint256' },
-    ],
-    outputs: [
-      {
-        name: 'lTokenAddress',
-        type: 'address',
-        internalType: 'contract ILToken',
-      },
-    ],
+    name: 'setUnlock',
+    inputs: [],
+    outputs: [],
     stateMutability: 'nonpayable',
   },
   {
@@ -57,19 +64,32 @@ export const stakeAbi = [
   {
     type: 'function',
     name: 'unlock',
-    inputs: [],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'withdraw',
     inputs: [
       { name: 'lToken', type: 'address', internalType: 'contract ILToken' },
       { name: 'amount', type: 'uint256', internalType: 'uint256' },
     ],
     outputs: [{ name: '', type: 'bool', internalType: 'bool' }],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    name: 'Lock',
+    inputs: [
+      { name: 'user', type: 'address', indexed: true, internalType: 'address' },
+      {
+        name: 'token',
+        type: 'address',
+        indexed: false,
+        internalType: 'contract IERC20',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
   },
   {
     type: 'event',
@@ -92,27 +112,7 @@ export const stakeAbi = [
   },
   {
     type: 'event',
-    name: 'Stake',
-    inputs: [
-      { name: 'user', type: 'address', indexed: true, internalType: 'address' },
-      {
-        name: 'token',
-        type: 'address',
-        indexed: false,
-        internalType: 'contract IERC20',
-      },
-      {
-        name: 'amount',
-        type: 'uint256',
-        indexed: false,
-        internalType: 'uint256',
-      },
-    ],
-    anonymous: false,
-  },
-  {
-    type: 'event',
-    name: 'Withdraw',
+    name: 'Unlock',
     inputs: [
       { name: 'user', type: 'address', indexed: true, internalType: 'address' },
       {

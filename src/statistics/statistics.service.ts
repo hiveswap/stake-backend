@@ -25,7 +25,7 @@ export class StatisticsService {
   })
   async update() {
     const curTime = DateTime.now().setZone('Asia/Singapore');
-    Logger.log(`Statistics starts to update at ${curTime.toString()}`);
+    Logger.log(`Starts to update at ${curTime.toString()}`, 'Statistics');
 
     // get the latest update time in case we lost some important update
     const latestUpdateRecord = await this.prisma.indexedRecord.findFirst({});
@@ -52,7 +52,7 @@ export class StatisticsService {
       const txs: PrismaPromise<any>[] = [];
 
       await this.#getAndParseStakeEvents(startTime, endTime, txs);
-      await this.#getAndParseAddLiquidityEvents(startTime, endTime, txs);
+      // await this.#getAndParseAddLiquidityEvents(startTime, endTime, txs);
 
       txs.push(
         this.prisma.indexedRecord.update({
