@@ -13,12 +13,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model RawEvents {
+model RawStakeEvents {
   id        Int      @id @default(autoincrement())
   timestamp DateTime
   userAddr  String
   amount    String
   tokenAddr String
+}
+
+model RawAddLiquidityEvents {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime
+  userAddr  String
+  tokenX    String
+  tokenY    String
+  amountX   String
+  amountY   String
 }
 
 model Credits {

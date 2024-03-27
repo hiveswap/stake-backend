@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { JsonRpcProvider, Contract, EventFragment, FetchRequest } from 'ethers';
-import { abi } from '../resources/contract/abi';
+import { stakeAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
-import { RawEvents } from '@prisma/client';
+import { RawStakeEvents } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
@@ -27,7 +27,7 @@ export class IndexerService {
     this.provider = new JsonRpcProvider(fetchReq);
     this.retryInterval = configurations().retryInterval;
     this.retryTimes = configurations().retryTimes;
-    this.contract = new Contract(configurations().contractAddr, abi);
+    this.contract = new Contract(configurations().stakeContractAddr, stakeAbi);
   }
 
   onModuleInit() {
@@ -55,9 +55,9 @@ export class IndexerService {
       });
       this.latestBlockId = insertRes.id;
     }
-    const topic = this.contract.interface.getEvent('Stake');
+    const topic = this.contract.interface.getEvent('Lock');
     if (!topic) {
-      throw new Error('Stake event not found');
+      throw new Error('Lock event not found');
     }
     while (true) {
       // sleep a while, in case too many requests
@@ -129,7 +129,7 @@ export class IndexerService {
     startBlock: number,
     latestBlockNum: number,
     topic: EventFragment,
-  ): Promise<RawEvents[] | null> {
+  ): Promise<RawStakeEvents[] | null> {
     return new Promise(async (resolve) => {
       const logs = await retry(
         this.provider.getLogs,
@@ -147,7 +147,7 @@ export class IndexerService {
       if (!logs || logs.length === 0) {
         return resolve(null);
       }
-      const events: RawEvents[] = [];
+      const events: RawStakeEvents[] = [];
       logs.forEach((log) => {
         const parsed = this.contract.interface.decodeEventLog(
           topic,
@@ -158,8 +158,8 @@ export class IndexerService {
           id: 0,
           timestamp: new Date(),
           userAddr: parsed.user,
-          amount: parsed.userInfo.amount.toString(),
-          tokenAddr: parsed.userInfo.tokenAddr,
+          amount: parsed.amount.toString(),
+          tokenAddr: parsed.token,
         });
       });
       resolve(events);
@@ -175,7 +175,7 @@ export class IndexerService {
     });
   }
 
-  async #updateEvents(events: RawEvents[]) {
-    await this.prisma.rawEvents.createMany({ data: events });
+  async #updateEvents(events: RawStakeEvents[]) {
+    await this.prisma.rawStakeEvents.createMany({ data: events });
   }
 }
