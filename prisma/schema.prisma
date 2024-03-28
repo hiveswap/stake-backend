@@ -31,6 +31,16 @@ model RawAddLiquidityEvents {
   amountY   String
 }
 
+model RawDecLiquidityEvents {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime
+  userAddr  String
+  tokenX    String
+  tokenY    String
+  amountX   String
+  amountY   String
+}
+
 model Credits {
   userAddr  String   @id
   curCredit Int

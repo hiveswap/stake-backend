@@ -1,20 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { JsonRpcProvider, Contract, EventFragment, FetchRequest } from 'ethers';
-import { stakeAbi } from '../resources/contract/abi';
+import {
+  JsonRpcProvider,
+  Contract,
+  EventFragment,
+  FetchRequest,
+  Wallet,
+} from 'ethers';
+import { stakeAbi, liquidityAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
-import { RawStakeEvents } from '@prisma/client';
+import {
+  RawAddLiquidityEvents,
+  RawDecLiquidityEvents,
+  RawStakeEvents,
+} from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
+import { poolMap } from 'src/utils/constants';
 
 @Injectable()
 export class IndexerService {
   provider: JsonRpcProvider;
   retryInterval: number;
   retryTimes: number;
-  contract: Contract;
+  stakeContract: Contract;
+  liquidityContract: Contract;
   latestBlockId: number;
 
   constructor(private readonly prisma: PrismaService) {
@@ -27,7 +39,16 @@ export class IndexerService {
     this.provider = new JsonRpcProvider(fetchReq);
     this.retryInterval = configurations().retryInterval;
     this.retryTimes = configurations().retryTimes;
-    this.contract = new Contract(configurations().stakeContractAddr, stakeAbi);
+    this.stakeContract = new Contract(
+      configurations().stakeContractAddr,
+      stakeAbi,
+    );
+    const wallet = new Wallet(configurations().privateKey, this.provider);
+    this.liquidityContract = new Contract(
+      configurations().liquidityContractAddr,
+      liquidityAbi,
+      wallet,
+    );
   }
 
   onModuleInit() {
@@ -55,9 +76,20 @@ export class IndexerService {
       });
       this.latestBlockId = insertRes.id;
     }
-    const topic = this.contract.interface.getEvent('Lock');
-    if (!topic) {
+    const stakeTopic = this.stakeContract.interface.getEvent('Lock');
+    if (!stakeTopic) {
       throw new Error('Lock event not found');
+    }
+    const addLiquidityTopic =
+      this.liquidityContract.interface.getEvent('AddLiquidity');
+    if (!addLiquidityTopic) {
+      throw new Error('AddLiquidity event not found');
+    }
+
+    const decLiquidityTopic =
+      this.liquidityContract.interface.getEvent('DecLiquidity');
+    if (!decLiquidityTopic) {
+      throw new Error('DecLiquidity event not found');
     }
     while (true) {
       // sleep a while, in case too many requests
@@ -77,8 +109,23 @@ export class IndexerService {
       }
       Logger.log(`Get latest block[${latestBlockNum}]`, 'Indexer');
       // parse logs from startBlock to latest block number
-      const events = await this.#parseLogs(startBlock, latestBlockNum, topic);
-      if (!events) {
+      const stakeEvents = await this.#parseStakeEvents(
+        startBlock,
+        latestBlockNum,
+        stakeTopic,
+      );
+      const liquidityEvents = await this.#parseAddLiquidityEvents(
+        startBlock,
+        latestBlockNum,
+        addLiquidityTopic,
+      );
+      const decLiquidityEvents = await this.#parseDecLiquidityEvents(
+        startBlock,
+        latestBlockNum,
+        decLiquidityTopic,
+      );
+
+      if (!stakeEvents && !liquidityEvents && !decLiquidityEvents) {
         if (startBlock < latestBlockNum) {
           await retry(
             this.#updateLatestBlock,
@@ -98,17 +145,45 @@ export class IndexerService {
         continue;
       }
       // update parsed events
-      await retry(
-        this.#updateEvents,
-        this.retryTimes,
-        this.retryInterval,
-        this,
-        events,
-      );
-      Logger.log(
-        `Parsed ${events.length} events from block ${startBlock} to block ${latestBlockNum}`,
-        'Indexer',
-      );
+      if (stakeEvents) {
+        await retry(
+          this.#updateStakeEvents,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          stakeEvents,
+        );
+        Logger.log(
+          `Parsed ${stakeEvents.length} stake events from block ${startBlock} to block ${latestBlockNum}`,
+          'Indexer',
+        );
+      }
+      if (liquidityEvents) {
+        await retry(
+          this.#updateLiquidityEvents,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          liquidityEvents,
+        );
+        Logger.log(
+          `Parsed ${liquidityEvents.length} addLiquidity events from block ${startBlock} to block ${latestBlockNum}`,
+          'Indexer',
+        );
+      }
+      if (decLiquidityEvents) {
+        await retry(
+          this.#updateDecLiquidityEvents,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          decLiquidityEvents,
+        );
+        Logger.log(
+          `Parsed ${decLiquidityEvents.length} decLiquidity events from block ${startBlock} to block ${latestBlockNum}`,
+          'Indexer',
+        );
+      }
       Logger.log(`write events to db success`);
       // update parsed blockNumber
       startBlock = latestBlockNum;
@@ -125,10 +200,10 @@ export class IndexerService {
     }
   }
 
-  async #parseLogs(
+  async #parseStakeEvents(
     startBlock: number,
     latestBlockNum: number,
-    topic: EventFragment,
+    stakeTopic: EventFragment,
   ): Promise<RawStakeEvents[] | null> {
     return new Promise(async (resolve) => {
       const logs = await retry(
@@ -139,8 +214,8 @@ export class IndexerService {
         {
           fromBlock: startBlock,
           toBlock: latestBlockNum,
-          address: this.contract.target,
-          topics: [topic.topicHash],
+          address: this.stakeContract.target,
+          topics: [stakeTopic.topicHash],
         },
       );
 
@@ -149,8 +224,8 @@ export class IndexerService {
       }
       const events: RawStakeEvents[] = [];
       logs.forEach((log) => {
-        const parsed = this.contract.interface.decodeEventLog(
-          topic,
+        const parsed = this.stakeContract.interface.decodeEventLog(
+          stakeTopic,
           log.data,
           log.topics,
         );
@@ -166,6 +241,146 @@ export class IndexerService {
     });
   }
 
+  async #parseAddLiquidityEvents(
+    startBlock: number,
+    latestBlockNum: number,
+    addLiquidityTopic: EventFragment,
+  ): Promise<RawAddLiquidityEvents[] | null> {
+    return new Promise(async (resolve) => {
+      const logs = await retry(
+        this.provider.getLogs,
+        this.retryTimes,
+        this.retryInterval,
+        this.provider,
+        {
+          fromBlock: startBlock,
+          toBlock: latestBlockNum,
+          address: this.liquidityContract.target,
+          topics: [addLiquidityTopic.topicHash],
+        },
+      );
+
+      if (!logs || logs.length === 0) {
+        return;
+      }
+      const events: RawAddLiquidityEvents[] = [];
+      for (let i = 0; i < logs.length; i++) {
+        const parsed = this.liquidityContract.interface.decodeEventLog(
+          addLiquidityTopic,
+          logs[i].data,
+          logs[i].topics,
+        );
+
+        const poolID = await retry(
+          this.liquidityContract.poolIds,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          parsed.pool,
+        );
+        const tokens = await retry(
+          this.liquidityContract.poolMetas,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          poolID,
+        );
+        const index = [tokens.tokenX, tokens.tokenY].join(',');
+        if (!poolMap.has(index)) {
+          continue;
+        }
+        const tx = await retry(
+          logs[i].getTransaction,
+          this.retryTimes,
+          this.retryInterval,
+          logs[i],
+        );
+        const user = tx.from;
+        events.push({
+          id: 0,
+          timestamp: new Date(),
+          userAddr: user,
+          tokenX: tokens.tokenX,
+          tokenY: tokens.tokenY,
+          amountX: parsed.amountX.toString(),
+          amountY: parsed.amountY.toString(),
+        });
+      }
+
+      resolve(events);
+    });
+  }
+
+  async #parseDecLiquidityEvents(
+    startBlock: number,
+    latestBlockNum: number,
+    decLiquidityTopic: EventFragment,
+  ): Promise<RawAddLiquidityEvents[] | null> {
+    return new Promise(async (resolve) => {
+      const logs = await retry(
+        this.provider.getLogs,
+        this.retryTimes,
+        this.retryInterval,
+        this.provider,
+        {
+          fromBlock: startBlock,
+          toBlock: latestBlockNum,
+          address: this.liquidityContract.target,
+          topics: [decLiquidityTopic.topicHash],
+        },
+      );
+
+      if (!logs || logs.length === 0) {
+        return;
+      }
+      const events: RawDecLiquidityEvents[] = [];
+      for (let i = 0; i < logs.length; i++) {
+        const parsed = this.liquidityContract.interface.decodeEventLog(
+          decLiquidityTopic,
+          logs[i].data,
+          logs[i].topics,
+        );
+
+        const poolID = await retry(
+          this.liquidityContract.poolIds,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          parsed.pool,
+        );
+        const tokens = await retry(
+          this.liquidityContract.poolMetas,
+          this.retryTimes,
+          this.retryInterval,
+          this,
+          poolID,
+        );
+        const index = [tokens.tokenX, tokens.tokenY].join(',');
+        if (!poolMap.has(index)) {
+          continue;
+        }
+        const tx = await retry(
+          logs[i].getTransaction,
+          this.retryTimes,
+          this.retryInterval,
+          logs[i],
+        );
+        const user = tx.from;
+
+        events.push({
+          id: 0,
+          timestamp: new Date(),
+          userAddr: user,
+          tokenX: tokens.tokenX,
+          tokenY: tokens.tokenY,
+          amountX: parsed.amountX.toString(),
+          amountY: parsed.amountY.toString(),
+        });
+      }
+      resolve(events);
+    });
+  }
+
   async #updateLatestBlock(update: { blockNumber: number }) {
     await this.prisma.indexedRecord.update({
       data: update,
@@ -175,7 +390,24 @@ export class IndexerService {
     });
   }
 
-  async #updateEvents(events: RawStakeEvents[]) {
+  async #updateStakeEvents(events: RawStakeEvents[]) {
+    if (!events || events.length === 0) {
+      return;
+    }
     await this.prisma.rawStakeEvents.createMany({ data: events });
+  }
+
+  async #updateLiquidityEvents(events: RawAddLiquidityEvents[]) {
+    if (!events || events.length === 0) {
+      return;
+    }
+    await this.prisma.rawAddLiquidityEvents.createMany({ data: events });
+  }
+
+  async #updateDecLiquidityEvents(events: RawDecLiquidityEvents[]) {
+    if (!events || events.length === 0) {
+      return;
+    }
+    await this.prisma.rawDecLiquidityEvents.createMany({ data: events });
   }
 }
