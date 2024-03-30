@@ -1,8 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import configurations from '../config/configurations';
 
-@Controller('rank')
+@Controller('grank')
 export class RankController {
   constructor(private readonly prisma: PrismaService) {}
 

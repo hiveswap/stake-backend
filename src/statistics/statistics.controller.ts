@@ -6,13 +6,13 @@ import configurations from '../config/configurations';
 import { GetUserPointsDTO, HistoryCreditDto } from './dto/credit.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { prices } from '../config/price';
-import { AbiCoder, Contract, ethers, FetchRequest, JsonRpcProvider } from 'ethers';
+import { ethers, FetchRequest, JsonRpcProvider } from 'ethers';
 import { lockTokens } from '../config/tokens';
 import { erc20ABI } from '../resources/contract/erc20';
 import { MULTICALL_ADDRESS } from '../config/contracts';
 import { MulticallABI } from '../resources/abis/multicall';
 
-@Controller('statistics')
+@Controller('gstatistics')
 export class StatisticsController {
   retryTimes: number;
   retryInterval: number;
