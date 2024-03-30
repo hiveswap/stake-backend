@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { JsonRpcProvider, Contract, EventFragment, FetchRequest, Wallet } from 'ethers';
 import { stakeAbi, liquidityAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
-import { AddLiquidityEvent, LockEvent, RemoveLiquidityEvent } from '@prisma/client';
+import { AddLiquidityEvent, LockEvent, PrismaPromise, RemoveLiquidityEvent } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
@@ -74,56 +74,68 @@ export class IndexerService {
     }
 
     while (true) {
-      // sleep a while, in case too many requests
-      await new Promise((resolve) => setTimeout(resolve, configurations().indexerInterval));
+      try {
+        // sleep a while, in case too many requests
+        await new Promise((resolve) => setTimeout(resolve, configurations().indexerInterval));
 
-      // get the latest block number
-      const latestBlockNum = await retry(this.provider.getBlockNumber, this.retryTimes, this.retryInterval, this.provider);
+        // get the latest block number
+        const latestBlockNum = await this.provider.getBlockNumber();
 
-      if (latestBlockNum <= startBlock) {
-        continue;
-      }
-
-      Logger.log(`Fetch events from block ${startBlock} to ${latestBlockNum}`, 'Indexer');
-      // parse logs from startBlock to latest block number
-      const lockEvents = await this.#parseLockEvents(startBlock, latestBlockNum, lockTopic);
-      const liquidityEvents = await this.#parseAddLiquidityEvents(startBlock, latestBlockNum, addLiquidityTopic);
-      const decLiquidityEvents = await this.#parseDecLiquidityEvents(startBlock, latestBlockNum, decLiquidityTopic);
-
-      if (!lockEvents && !liquidityEvents && !decLiquidityEvents) {
-        if (startBlock < latestBlockNum) {
-          await retry(this.#updateLatestBlock, this.retryTimes, this.retryInterval, this, {
-            blockNumber: latestBlockNum,
-          });
-          Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
-          startBlock = latestBlockNum;
+        if (latestBlockNum <= startBlock) {
+          continue;
         }
+
+        const ev: PrismaPromise<any>[] = [];
+        Logger.log(`Fetch events from block ${startBlock} to ${latestBlockNum}`, 'Indexer');
+        // parse logs from startBlock to latest block number
+        const lockEvents = await this.#parseLockEvents(startBlock, latestBlockNum, lockTopic);
+        const liquidityEvents = await this.#parseAddLiquidityEvents(startBlock, latestBlockNum, addLiquidityTopic);
+        const decLiquidityEvents = await this.#parseDecLiquidityEvents(startBlock, latestBlockNum, decLiquidityTopic);
+
+        if (!lockEvents && !liquidityEvents && !decLiquidityEvents) {
+          if (startBlock < latestBlockNum) {
+            await this.#updateLatestBlock({
+              blockNumber: latestBlockNum,
+            });
+            Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
+            startBlock = latestBlockNum;
+          }
+          continue;
+        }
+
+        // update parsed events
+        if (lockEvents) {
+          ev.push(this.prisma.lockEvent.createMany({ data: lockEvents, skipDuplicates: true }));
+          Logger.log(`Parsed ${lockEvents.length} stake events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
+        }
+        if (liquidityEvents) {
+          ev.push(this.prisma.addLiquidityEvent.createMany({ data: liquidityEvents, skipDuplicates: true }));
+          Logger.log(`Parsed ${liquidityEvents.length} addLiquidity events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
+        }
+        if (decLiquidityEvents) {
+          ev.push(this.prisma.removeLiquidityEvent.createMany({ data: decLiquidityEvents, skipDuplicates: true }));
+          Logger.log(
+            `Parsed ${decLiquidityEvents.length} decLiquidity events from block ${startBlock} to block ${latestBlockNum}`,
+            'Indexer',
+          );
+        }
+        // update parsed blockNumber
+        ev.push(
+          this.prisma.indexedRecord.update({
+            data: {
+              blockNumber: latestBlockNum,
+            },
+            where: {
+              id: this.latestBlockId,
+            },
+          }),
+        );
+        await this.prisma.$transaction(ev);
+        startBlock = latestBlockNum;
+        Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
+      } catch (_) {
         continue;
       }
-
-      // update parsed events
-      if (lockEvents) {
-        await this.#updateStakeEvents(lockEvents);
-        Logger.log(`Parsed ${lockEvents.length} stake events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
-      }
-      if (liquidityEvents) {
-        await retry(this.#updateLiquidityEvents, this.retryTimes, this.retryInterval, this, liquidityEvents);
-        Logger.log(`Parsed ${liquidityEvents.length} addLiquidity events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
-      }
-      if (decLiquidityEvents) {
-        await retry(this.#updateDecLiquidityEvents, this.retryTimes, this.retryInterval, this, decLiquidityEvents);
-        Logger.log(
-          `Parsed ${decLiquidityEvents.length} decLiquidity events from block ${startBlock} to block ${latestBlockNum}`,
-          'Indexer',
-        );
-      }
-      Logger.log(`write events to db success`);
-      // update parsed blockNumber
-      startBlock = latestBlockNum;
-      await retry(this.#updateLatestBlock, this.retryTimes, this.retryInterval, this, {
-        blockNumber: latestBlockNum,
-      });
-      Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
     }
   }
 
@@ -198,6 +210,7 @@ export class IndexerService {
           tokenY: tokens.tokenY,
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
+          eventId: tx.hash + '-' + logs[i].index,
         });
       }
 
@@ -242,6 +255,7 @@ export class IndexerService {
           tokenY: tokens.tokenY,
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
+          eventId: tx.hash + '-' + logs[i].index,
         });
       }
       resolve(events);
@@ -255,26 +269,5 @@ export class IndexerService {
         id: this.latestBlockId,
       },
     });
-  }
-
-  async #updateStakeEvents(events: LockEvent[]) {
-    if (!events || events.length === 0) {
-      return;
-    }
-    await this.prisma.lockEvent.createMany({ data: events });
-  }
-
-  async #updateLiquidityEvents(events: AddLiquidityEvent[]) {
-    if (!events || events.length === 0) {
-      return;
-    }
-    await this.prisma.addLiquidityEvent.createMany({ data: events });
-  }
-
-  async #updateDecLiquidityEvents(events: RemoveLiquidityEvent[]) {
-    if (!events || events.length === 0) {
-      return;
-    }
-    await this.prisma.removeLiquidityEvent.createMany({ data: events });
   }
 }

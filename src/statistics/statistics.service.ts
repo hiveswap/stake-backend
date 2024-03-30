@@ -71,7 +71,7 @@ export class StatisticsService {
         acc.set(cur, (userLocks.get(cur) ?? new BigNumber(0)).multipliedBy(M_POINT_PER_HOUR).div(totalLockAmount));
         return acc;
       }, new Map<string, BigNumber>());
-
+      const action = 0;
       await this.prisma.$transaction([
         this.prisma.indexedRecord.update({
           where: {
@@ -86,10 +86,12 @@ export class StatisticsService {
             id: 0,
             userAddr: up,
             point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
-            action: 0,
+            action: action,
             timestamp: new Date().getTime() / 1000,
             epollId: rightTick,
+            eventId: `${up}-${rightTick}-${action}`,
           })),
+          skipDuplicates: true,
         }),
         ...Array.from(userPoints.keys()).map((userAddr) => {
           return this.prisma.point.upsert({
@@ -213,6 +215,7 @@ export class StatisticsService {
         action: 0,
         timestamp: new Date().getTime() / 1000,
         epollId: 0,
+        eventId: `${key}-${0}-${0}`,
       });
     });
 
@@ -303,6 +306,7 @@ export class StatisticsService {
         action: 0,
         timestamp: new Date().getTime() / 1000,
         epollId: 0,
+        eventId: `${key}-${0}-${0}`,
       });
     });
 
