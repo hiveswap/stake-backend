@@ -29,6 +29,7 @@
     "@nestjs/swagger": "^7.3.0",
     "@prisma/client": "5.11.0",
     "bcrypt": "^5.1.1",
+    "bignumber.js": "^9.1.2",
     "class-validator": "^0.14.1",
     "ethers": "^6.11.1",
     "luxon": "^3.4.4",

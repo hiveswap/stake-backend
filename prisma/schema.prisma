@@ -13,49 +13,66 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model RawStakeEvents {
-  id        Int      @id @default(autoincrement())
-  timestamp DateTime
-  userAddr  String
+model LockEvent {
+  id        Int    @id @default(autoincrement())
+  timestamp Int
+  userAddr  String @map("user_addr")
   amount    String
-  tokenAddr String
+  tokenAddr String @map("token_addr")
+  eventId   String @unique @map("event_id")
+
+  @@map("lock_events")
 }
 
-model RawAddLiquidityEvents {
-  id        Int      @id @default(autoincrement())
-  timestamp DateTime
-  userAddr  String
-  tokenX    String
-  tokenY    String
-  amountX   String
-  amountY   String
+model AddLiquidityEvent {
+  id        Int    @id @default(autoincrement())
+  timestamp Int
+  userAddr  String @map("user_addr")
+  tokenX    String @map("token_x")
+  tokenY    String @map("token_y")
+  amountX   String @map("amount_x")
+  amountY   String @map("amount_y")
+
+  @@map("add_liquidity_events")
 }
 
-model RawDecLiquidityEvents {
-  id        Int      @id @default(autoincrement())
-  timestamp DateTime
-  userAddr  String
-  tokenX    String
-  tokenY    String
-  amountX   String
-  amountY   String
+model RemoveLiquidityEvent {
+  id        Int    @id @default(autoincrement())
+  timestamp Int
+  userAddr  String @map("user_addr")
+  tokenX    String @map("token_x")
+  tokenY    String @map("token_y")
+  amountX   String @map("amount_x")
+  amountY   String @map("amount_y")
+
+  @@map("remove_liquidity_events")
 }
 
-model Credits {
-  userAddr  String   @id
-  curCredit Int
-  timestamp DateTime
+model Point {
+  userAddr  String  @id @map("user_addr")
+  hivePoint Decimal @default(0) @map("hive_point") @db.Decimal(65, 0)
+  mapoPoint Decimal @default(0) @map("mapo_point") @db.Decimal(65, 0)
+  timestamp Int
+
+  @@map("points")
 }
 
-model CreditHistory {
-  id        Int      @id @default(autoincrement())
-  userAddr  String
-  timestamp DateTime
-  credit    Int
+model PointHistory {
+  id        Int     @id @default(autoincrement())
+  userAddr  String  @map("user_addr")
+  timestamp Int
+  point     Decimal @db.Decimal(65, 0)
+  action    Int // 0=>hive point, 1=>mapo point
+  epollId   Int     @map("epoll_id")
+
+  @@map("point_history")
 }
 
 model IndexedRecord {
-  id          Int      @id @default(autoincrement())
-  blockNumber Int
-  updateTime  DateTime
+  id              Int      @id @default(autoincrement())
+  blockNumber     Int      @map("block_number")
+  updateTime      DateTime @map("update_time")
+  pointCheckpoint Int      @map("point_checkpoint")
+
+  @@map("indexed_records")
 }

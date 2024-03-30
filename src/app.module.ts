@@ -5,6 +5,7 @@ import configurations from './config/configurations';
 import { IndexerModule } from './indexer/indexer.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { RankModule } from './rank/rank.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     StatisticsModule,
     IndexerModule,
     ScheduleModule.forRoot(),
+    RankModule,
   ],
   controllers: [AppController],
 })

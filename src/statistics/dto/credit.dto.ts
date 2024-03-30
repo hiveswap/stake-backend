@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEthereumAddress, IsInt } from 'class-validator';
 
-export class CurrentCreditDto {
+export class GetUserPointsDTO {
   @ApiProperty()
   @IsEthereumAddress()
   user: string;

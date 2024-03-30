@@ -2,27 +2,122 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { Cron } from '@nestjs/schedule';
 import { retry } from 'src/utils/retry';
-import { CreditHistory, PrismaPromise } from '@prisma/client';
+import { PointHistory, PrismaPromise } from '@prisma/client';
 import configurations from 'src/config/configurations';
 import { DateTime } from 'luxon';
 import { poolMap } from 'src/utils/constants';
 import fetch, { RequestInit } from 'node-fetch';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import BigNumber from 'bignumber.js';
+import { Prisma } from '@prisma/client';
+import { M_POINT_PER_HOUR } from '../config/point';
 
 @Injectable()
 export class StatisticsService {
   retryTimes: number;
   retryInterval: number;
+
   constructor(private readonly prisma: PrismaService) {
     this.retryTimes = configurations().retryTimes;
     this.retryInterval = configurations().retryInterval;
   }
 
+  @Cron('*/30 * * * * *')
+  async handlePointHistory() {
+    Logger.log('Handle point history', 'StatisticsService');
+    const record = await this.prisma.indexedRecord.findFirst({});
+    if (!record) {
+      return;
+    }
+
+    let started = record.pointCheckpoint;
+    if (record.pointCheckpoint === 0) {
+      const firstLockEvent = await this.prisma.lockEvent.findFirst({
+        orderBy: {
+          timestamp: 'asc',
+        },
+      });
+
+      if (!firstLockEvent) {
+        return;
+      }
+
+      started = firstLockEvent.timestamp;
+    }
+
+    const ended = Math.floor(new Date().getTime() / 1000);
+    for (let i = started; i < ended; i = i + 60 * 60) {
+      const rightTick = i + 60 * 60;
+      const lockEvents = await this.prisma.lockEvent.findMany({
+        where: {
+          timestamp: {
+            gte: started,
+            lt: rightTick,
+          },
+        },
+      });
+      if (!lockEvents) continue;
+      const userLocks = lockEvents.reduce((acc, cur) => {
+        if (acc.has(cur.userAddr)) {
+          acc.set(cur.userAddr, new BigNumber(cur.amount).plus(acc.get(cur.userAddr) ?? 0));
+        } else {
+          acc.set(cur.userAddr, new BigNumber(cur.amount));
+        }
+        return acc;
+      }, new Map<string, BigNumber>());
+
+      const totalLockAmount = Array.from(userLocks.values()).reduce((acc, cur) => acc.plus(cur), new BigNumber(0));
+      const userPoints = Array.from(userLocks.keys()).reduce((acc, cur) => {
+        acc.set(cur, (userLocks.get(cur) ?? new BigNumber(0)).multipliedBy(M_POINT_PER_HOUR).div(totalLockAmount));
+        return acc;
+      }, new Map<string, BigNumber>());
+
+      await this.prisma.$transaction([
+        this.prisma.indexedRecord.update({
+          where: {
+            id: record.id,
+          },
+          data: {
+            pointCheckpoint: ended,
+          },
+        }),
+        this.prisma.pointHistory.createMany({
+          data: Array.from(userPoints.keys()).map((up) => ({
+            id: 0,
+            userAddr: up,
+            point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
+            action: 0,
+            timestamp: new Date().getTime() / 1000,
+            epollId: rightTick,
+          })),
+        }),
+        ...Array.from(userPoints.keys()).map((userAddr) => {
+          return this.prisma.point.upsert({
+            where: {
+              userAddr: userAddr,
+            },
+            create: {
+              userAddr: userAddr,
+              hivePoint: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
+              timestamp: new Date().getTime() / 1000,
+            },
+            update: {
+              hivePoint: {
+                increment: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
+              },
+              timestamp: new Date().getTime() / 1000,
+            },
+          });
+        }),
+      ]);
+    }
+  }
+
   // traverse the raw event data, update history credit and current credit.
   // worked at 00:00 everyday in Singapore time
-  @Cron('0 0 0 * * 1-7', {
-    timeZone: 'Asia/Singapore',
-  })
+  // @Cron('0 0 0 * * 1-7', {
+  //   timeZone: 'Asia/Singapore',
+  // })
   async update() {
     const curTime = DateTime.now().setZone('Asia/Singapore');
     Logger.log(`Starts to update at ${curTime.toString()}`, 'Statistics');
@@ -44,14 +139,11 @@ export class StatisticsService {
       const startTime = latestUpdateTime.setZone('Asia/Singapore');
 
       // end with the next nearest 00:00
-      const endTime = startTime
-        .startOf('day')
-        .plus({ days: 1 })
-        .setZone('Asia/Singapore');
+      const endTime = startTime.startOf('day').plus({ days: 1 }).setZone('Asia/Singapore');
 
       const txs: PrismaPromise<any>[] = [];
 
-      await this.#getAndParseStakeEvents(startTime, endTime, txs);
+      // await this.#getAndParseStakeEvents(startTime, endTime, txs);
       // await this.#getAndParseAddLiquidityEvents(startTime, endTime, txs);
 
       txs.push(
@@ -80,30 +172,21 @@ export class StatisticsService {
     }
   }
 
-  async #getAndParseStakeEvents(
-    startTime: DateTime,
-    endTime: DateTime,
-    txs: PrismaPromise<any>[],
-  ) {
-    const rawData = await retry(
-      this.prisma.rawStakeEvents.findMany,
-      this.retryTimes,
-      this.retryInterval,
-      this,
-      {
-        where: {
-          timestamp: {
-            gte: startTime.toJSDate(),
-            lt: endTime.toJSDate(),
-          },
-        },
-        select: {
-          amount: true,
-          userAddr: true,
-          timestamp: true,
+  async #getAndParseStakeEvents(startTime: DateTime, endTime: DateTime, txs: PrismaPromise<any>[]) {
+    const rawData = await retry(this.prisma.lockEvent.findMany, this.retryTimes, this.retryInterval, this, {
+      where: {
+        timestamp: {
+          gte: 0,
+          // gte: startTime.toJSDate(),
+          // lt: endTime.toJSDate(),
         },
       },
-    );
+      select: {
+        amount: true,
+        userAddr: true,
+        timestamp: true,
+      },
+    });
 
     let count = 0;
     // aggregate all user, get the user total stake data
@@ -121,81 +204,71 @@ export class StatisticsService {
     });
 
     // update the history credit data
-    const userHistory: CreditHistory[] = [];
+    const userHistory: PointHistory[] = [];
     userMap.forEach((value, key) => {
       userHistory.push({
         id: 0,
         userAddr: key,
-        credit: (configurations().stakeScores * value) / count,
-        timestamp: new Date(),
+        point: new Prisma.Decimal((configurations().stakeScores * value) / count),
+        action: 0,
+        timestamp: new Date().getTime() / 1000,
+        epollId: 0,
       });
     });
 
     // update history data
-    txs.push(this.prisma.creditHistory.createMany({ data: userHistory }));
+    txs.push(this.prisma.pointHistory.createMany({ data: userHistory }));
 
-    const creditChange = new Map<string, number>();
-    userHistory.forEach(async (data) => {
-      creditChange.get(data.userAddr)
-        ? creditChange.set(
-            data.userAddr,
-            // @ts-expect-error ts(2322)
-            creditChange.get(data.userAddr) + data.credit,
-          )
-        : creditChange.set(data.userAddr, data.credit);
-      // update current credit
-      txs.push(
-        this.prisma.credits.upsert({
-          where: {
-            userAddr: data.userAddr,
-          },
-          create: {
-            userAddr: data.userAddr,
-            curCredit: data.credit,
-            timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
-          },
-          update: {
-            curCredit: {
-              increment: data.credit,
-            },
-            timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
-          },
-        }),
-      );
-    });
+    // const creditChange = new Map<string, number>();
+    // userHistory.forEach(async (data) => {
+    //   creditChange.get(data.userAddr)
+    //     ? creditChange.set(
+    //         data.userAddr,
+    //         // @ts-expect-error ts(2322)
+    //         creditChange.get(data.userAddr) + data.credit,
+    //       )
+    //     : creditChange.set(data.userAddr, data.credit);
+    //   // update current credit
+    //   txs.push(
+    //     this.prisma.point.upsert({
+    //       where: {
+    //         userAddr: data.userAddr,
+    //       },
+    //       create: {
+    //         userAddr: data.userAddr,
+    //         hivePoint: data.credit,
+    //         mapoPoint: data.credit,
+    //         timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
+    //       },
+    //       update: {
+    //         hivePoint: {
+    //           increment: data.credit,
+    //         },
+    //         timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
+    //       },
+    //     }),
+    //   );
+    // });
 
-    Logger.log(
-      `parsed stake events from ${startTime} to ${endTime} success`,
-      'Statistics',
-    );
+    Logger.log(`parsed stake events from ${startTime} to ${endTime} success`, 'Statistics');
   }
 
-  async #getAndParseAddLiquidityEvents(
-    startTime: DateTime,
-    endTime: DateTime,
-    txs: PrismaPromise<any>[],
-  ) {
-    const rawData = await retry(
-      this.prisma.rawAddLiquidityEvents.findMany,
-      this.retryTimes,
-      this.retryInterval,
-      this,
-      {
-        where: {
-          timestamp: {
-            gte: startTime.toJSDate(),
-            lt: endTime.toJSDate(),
-          },
-        },
-        select: {
-          userAddr: true,
-          tokenX: true,
-          tokenY: true,
-          amountX: true,
-          amountY: true,
+  async #getAndParseAddLiquidityEvents(startTime: DateTime, endTime: DateTime, txs: PrismaPromise<any>[]) {
+    const rawData = await retry(this.prisma.addLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this, {
+      where: {
+        timestamp: {
+          gte: startTime.toMillis(),
+          lt: endTime.toMillis(),
         },
       },
-    );
+      select: {
+        userAddr: true,
+        tokenX: true,
+        tokenY: true,
+        amountX: true,
+        amountY: true,
+      },
+    });
 
     let count = 0;
     const userMap = new Map();
@@ -221,61 +294,56 @@ export class StatisticsService {
         : userMap.set(data.userAddr, BigInt(userAmount));
     });
 
-    const userHistory: CreditHistory[] = [];
+    const userHistory: PointHistory[] = [];
     userMap.forEach((value, key) => {
       userHistory.push({
         id: 0,
         userAddr: key,
-        credit: Number((configurations().liquidityScores * value) / count),
-        timestamp: new Date(),
+        point: new Prisma.Decimal((configurations().liquidityScores * value) / count),
+        action: 0,
+        timestamp: new Date().getTime() / 1000,
+        epollId: 0,
       });
     });
 
     // update history data
-    txs.push(this.prisma.creditHistory.createMany({ data: userHistory }));
+    txs.push(this.prisma.pointHistory.createMany({ data: userHistory }));
 
-    const creditChange = new Map<string, number>();
-    userHistory.forEach(async (data) => {
-      creditChange.get(data.userAddr)
-        ? creditChange.set(
-            data.userAddr,
-            // @ts-expect-error ts(2322)
-            creditChange.get(data.userAddr) + data.credit,
-          )
-        : creditChange.set(data.userAddr, data.credit);
-      // update current credit
-      txs.push(
-        this.prisma.credits.upsert({
-          where: {
-            userAddr: data.userAddr,
-          },
-          create: {
-            userAddr: data.userAddr,
-            curCredit: data.credit,
-            timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
-          },
-          update: {
-            curCredit: {
-              increment: data.credit,
-            },
-            timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
-          },
-        }),
-      );
-    });
+    // const creditChange = new Map<string, number>();
+    // userHistory.forEach(async (data) => {
+    // creditChange.get(data.userAddr)
+    //   ? creditChange.set(
+    //       data.userAddr,
+    //       // @ts-expect-error ts(2322)
+    //       creditChange.get(data.userAddr) + data.credit,
+    //     )
+    //   : creditChange.set(data.userAddr, data.credit);
+    // update current credit
+    // txs.push(
+    //   this.prisma.point.upsert({
+    //     where: {
+    //       userAddr: data.userAddr,
+    //     },
+    //     create: {
+    //       userAddr: data.userAddr,
+    //       hivePoint: data.credit,
+    //       mapoPoint: data.credit,
+    //       timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
+    //     },
+    //     update: {
+    //       hivePoint: {
+    //         increment: data.credit,
+    //       },
+    //       timestamp: DateTime.now().setZone('Asia/Singapore').toJSDate(),
+    //     },
+    //   }),
+    // );
+    // });
 
-    Logger.log(
-      `parsed addLiquidity events from ${startTime} to ${endTime} success`,
-      'Statistics',
-    );
+    Logger.log(`parsed addLiquidity events from ${startTime} to ${endTime} success`, 'Statistics');
   }
 
-  async #getTokenPriceInUSD(tokenPair: {
-    tokenX: string;
-    tokenY: string;
-    amountX: number;
-    amountY: number;
-  }): Promise<number> {
+  async #getTokenPriceInUSD(tokenPair: { tokenX: string; tokenY: string; amountX: number; amountY: number }): Promise<number> {
     return new Promise<number>(async (resolve, reject) => {
       const tokenList = [];
       if (tokenPair.tokenX != 'USDT') {
@@ -294,24 +362,11 @@ export class StatisticsService {
       if (proxy !== '') {
         opts.agent = new HttpsProxyAgent(proxy);
       }
-      const response = await retry(
-        fetch,
-        this.retryTimes,
-        this.retryInterval,
-        this,
-        targetUrl,
-        opts,
-      );
+      const response = await retry(fetch, this.retryTimes, this.retryInterval, this, targetUrl, opts);
       const json: { [key: string]: { usd: number } } = await response.json();
-      const tokenXPrice = json[tokenPair.tokenX]
-        ? json[tokenPair.tokenX]['usd']
-        : 1;
-      const tokenYPrice = json[tokenPair.tokenX]
-        ? json[tokenPair.tokenY]['usd']
-        : 1;
-      resolve(
-        tokenPair.amountX * tokenXPrice + tokenPair.amountY * tokenYPrice,
-      );
+      const tokenXPrice = json[tokenPair.tokenX] ? json[tokenPair.tokenX]['usd'] : 1;
+      const tokenYPrice = json[tokenPair.tokenX] ? json[tokenPair.tokenY]['usd'] : 1;
+      resolve(tokenPair.amountX * tokenXPrice + tokenPair.amountY * tokenYPrice);
     });
   }
 }
