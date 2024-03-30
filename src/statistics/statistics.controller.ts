@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service';
-import { retry } from '../utils/retry';
 import configurations from '../config/configurations';
 import { GetUserPointsDTO, HistoryCreditDto } from './dto/credit.dto';
 import { AuthGuard } from '../auth/auth.guard';
@@ -45,13 +44,13 @@ export class StatisticsController {
     },
   })
   async historyCredit(@Body() params: HistoryCreditDto) {
-    return await retry(this.prisma.pointHistory.findMany, this.retryTimes, this.retryInterval, this, {
+    return await this.prisma.pointHistory.findMany({
       where: {
         userAddr: params.user,
       },
       select: {
         timestamp: true,
-        credit: true,
+        point: true,
       },
       take: params.pageSize,
       skip: (params.currentPage - 1) * params.pageSize,
@@ -79,7 +78,7 @@ export class StatisticsController {
     },
   })
   async getUserPoints(@Query() params: GetUserPointsDTO) {
-    const res = await retry(this.prisma.point.findFirst, this.retryTimes, this.retryInterval, this, {
+    const res = await this.prisma.point.findFirst({
       where: {
         userAddr: params.user,
       },

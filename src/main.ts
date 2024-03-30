@@ -24,7 +24,6 @@ async function bootstrap() {
   };
   // Defines the path where the redoc document will be available
   await RedocModule.setup('/docs', app, document, redocOptions);
-  console.log('listening on port', port);
   app.enableCors();
   await app.listen(port);
 }

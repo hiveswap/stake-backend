@@ -32,6 +32,7 @@ model AddLiquidityEvent {
   tokenY    String @map("token_y")
   amountX   String @map("amount_x")
   amountY   String @map("amount_y")
+  eventId   String @unique @map("event_id")
 
   @@map("add_liquidity_events")
 }
@@ -44,6 +45,7 @@ model RemoveLiquidityEvent {
   tokenY    String @map("token_y")
   amountX   String @map("amount_x")
   amountY   String @map("amount_y")
+  eventId   String @unique @map("event_id")
 
   @@map("remove_liquidity_events")
 }
@@ -64,6 +66,7 @@ model PointHistory {
   point     Decimal @db.Decimal(65, 0)
   action    Int // 0=>hive point, 1=>mapo point
   epollId   Int     @map("epoll_id")
+  eventId   String  @unique @map("event_id")
 
   @@map("point_history")
 }

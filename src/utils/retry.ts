@@ -15,10 +15,7 @@ export async function retry<T extends any[], U>(
   } catch (error) {
     if (retryTimes > 0) {
       await new Promise((resolve) => setTimeout(resolve, retryInterval));
-      Logger.warn(
-        `retry(${func.name}) err, will retry ${retryTimes} times`,
-        'Retry',
-      );
+      Logger.warn(`retry(${func.name}) err, will retry ${retryTimes} times`, 'Retry');
       return retry(func, retryTimes - 1, retryInterval, context, ...args);
     } else {
       throw error;
