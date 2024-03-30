@@ -12,7 +12,7 @@ import { erc20ABI } from '../resources/contract/erc20';
 import { MULTICALL_ADDRESS } from '../config/contracts';
 import { MulticallABI } from '../resources/abis/multicall';
 
-@Controller('gstatistics')
+@Controller('statistics')
 export class StatisticsController {
   retryTimes: number;
   retryInterval: number;
