@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatisticsController } from './statistics.controller';
-import { CurrentCreditDto, HistoryCreditDto } from './dto/credit.dto';
+import { GetUserPointsDTO, HistoryCreditDto } from './dto/credit.dto';
 import { PrismaService } from '../prisma.service';
 import { DateTime } from 'luxon';
 
@@ -19,15 +19,15 @@ describe('StatisticsController', () => {
 
     appController = app.get<StatisticsController>(StatisticsController);
     const prisma = app.get<PrismaService>(PrismaService);
-    prisma.creditHistory.findMany = jest.fn().mockReturnValueOnce([mockData]);
-    prisma.credits.findFirst = jest.fn().mockReturnValueOnce(mockData);
+    prisma.pointHistory.findMany = jest.fn().mockReturnValueOnce([mockData]);
+    prisma.point.findFirst = jest.fn().mockReturnValueOnce(mockData);
   });
 
   describe('root', () => {
     it('should return latest credit', async () => {
-      const param = new CurrentCreditDto();
+      const param = new GetUserPointsDTO();
       param.user = '0x0094d7caC1AeaFc2d87E2DF6B97F2400B0527522';
-      expect(await appController.latestCredit(param)).toEqual(mockData);
+      expect(await appController.getUserPoints(param)).toEqual(mockData);
     });
 
     it('should return credit history', async () => {
