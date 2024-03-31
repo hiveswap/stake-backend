@@ -58,7 +58,7 @@ export class StatisticsService {
           },
         },
       });
-      if (!addLiquidityEvents && !removeLiquidityEvents) continue;
+      if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
 
       const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
         if (acc.has(cur.userAddr)) {
@@ -84,16 +84,22 @@ export class StatisticsService {
         return acc;
       }, new Map<string, BigNumber>());
 
-      const userLiquidities = StatisticsService.mergeMaps(userAddLiquidities, userRemoveLiquidities);
+      const userLiquidities = this.#mergeMaps(userAddLiquidities, userRemoveLiquidities);
+
       const userLastTotal = await this.prisma.userCurrentLPAmount.findMany({});
-      const userNewTotal = userLastTotal.reduce((acc, cur) => {
-        if (userLiquidities.has(cur.userAddr)) {
-          acc.set(cur.userAddr, userLiquidities.get(cur.userAddr)?.plus(cur.amount) ?? new BigNumber(0));
-        } else {
-          acc.set(cur.userAddr, userLiquidities.get(cur.userAddr) ?? new BigNumber(0));
-        }
+
+      const userLastTotalMap = userLastTotal.reduce((acc, cur) => {
+        acc.set(cur.userAddr, new BigNumber(cur.amount));
         return acc;
       }, new Map<string, BigNumber>());
+      const userNewTotal: Map<string, BigNumber> = userLastTotalMap;
+      userLiquidities.forEach((value, key) => {
+        if (userLastTotalMap.has(key)) {
+          userNewTotal.set(key, userLastTotalMap.get(key)?.plus(value) ?? new BigNumber(0));
+        } else {
+          userNewTotal.set(key, value);
+        }
+      });
 
       const totalLockAmount = Array.from(userNewTotal.values()).reduce((acc, cur) => acc.plus(cur), new BigNumber(0));
       const userPoints = Array.from(userNewTotal.keys()).reduce((acc, cur) => {
@@ -125,37 +131,38 @@ export class StatisticsService {
           skipDuplicates: true,
         }),
         ...Array.from(userPoints.keys()).map((userAddr) => {
+          const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2));
           return this.prisma.point.upsert({
             where: {
               userAddr: userAddr,
             },
             create: {
               userAddr: userAddr,
-              hivePoint: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
-              point: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
+              hivePoint: point,
+              point: point,
             },
             update: {
               hivePoint: {
-                increment: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
+                increment: point,
               },
               point: {
-                increment: new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2)),
+                increment: point,
               },
             },
           });
         }),
         ...Array.from(userNewTotal.keys()).map((userAddr) => {
+          const amount = (userLiquidities.get(userAddr) ?? new BigNumber(0)).toFixed(2);
           return this.prisma.userCurrentLPAmount.upsert({
             where: {
               userAddr: userAddr,
             },
             create: {
-              id: 0,
               userAddr: userAddr,
-              amount: (userLiquidities.get(userAddr) ?? new BigNumber(0)).toFixed(2),
+              amount: amount,
             },
             update: {
-              amount: (userLiquidities.get(userAddr) ?? new BigNumber(0)).toFixed(2),
+              amount: amount,
             },
           });
         }),
@@ -164,11 +171,11 @@ export class StatisticsService {
   }
 
   #getTokenInUSD(tokenX: string, tokenY: string, amountX: string, amountY: string): BigNumber {
-    console.log(tokenX, tokenY, amountX, amountY);
-    return new BigNumber(1);
+    console.log(tokenX, tokenY);
+    return new BigNumber(amountX).plus(new BigNumber(amountY));
   }
 
-  static mergeMaps<T>(map1: Map<T, BigNumber>, map2: Map<T, BigNumber>): Map<T, BigNumber> {
+  #mergeMaps<T>(map1: Map<T, BigNumber>, map2: Map<T, BigNumber>): Map<T, BigNumber> {
     const res = new Map([...map1]);
     for (const [key, value] of map2) {
       res.set(key, (res.get(key) ?? new BigNumber(0)).plus(value));
