@@ -161,7 +161,6 @@ export class IndexerService {
           mapoPoint: new Prisma.Decimal(Number(point)),
           hivePoint: new Prisma.Decimal(0),
           point: new Prisma.Decimal(Number(point)),
-          timestamp: new Date().getTime() / 1000,
         },
         update: {
           mapoPoint: {
@@ -170,7 +169,6 @@ export class IndexerService {
           point: {
             increment: new Prisma.Decimal(point),
           },
-          timestamp: new Date().getTime() / 1000,
         },
       });
     });
