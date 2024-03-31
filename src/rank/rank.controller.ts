@@ -5,21 +5,12 @@ import { PrismaService } from '../prisma.service';
 export class RankController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Get('h-point')
+  @Get('point')
   async getHivePointRank() {
     console.log();
     return this.prisma.point.findMany({
       orderBy: {
-        hivePoint: 'desc',
-      },
-    });
-  }
-
-  @Get('m-point')
-  async getMapoPointRank() {
-    return this.prisma.point.findMany({
-      orderBy: {
-        mapoPoint: 'desc',
+        point: 'desc',
       },
     });
   }

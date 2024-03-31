@@ -85,11 +85,13 @@ export class StatisticsController {
       select: {
         hivePoint: true,
         mapoPoint: true,
+        point: true,
       },
     });
     return {
       hivePoint: res?.hivePoint ?? 0,
       mapoPoint: res?.mapoPoint ?? 0,
+      point: res?.point ?? 0,
     };
   }
 

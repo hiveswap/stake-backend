@@ -13,15 +13,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model LockEvent {
-  id        Int    @id @default(autoincrement())
-  timestamp Int
-  userAddr  String @map("user_addr")
-  amount    String
-  tokenAddr String @map("token_addr")
-  eventId   String @unique @map("event_id")
+model BridgeEvent {
+  id          Int    @id @default(autoincrement())
+  timestamp   Int
+  blockNumber Int    @map("block_number")
+  fromChainId BigInt @map("from_chain_id") @db.BigInt
+  toChainId   BigInt @map("to_chain_id") @db.BigInt
+  amount      String
+  from        String
+  to          String
+  orderId     String @unique @map("order_id")
+  tokenAddr   String @map("token_addr")
+  eventId     String @unique @map("event_id")
 
-  @@map("lock_events")
+  @@map("bridge_events")
 }
 
 model AddLiquidityEvent {
@@ -52,8 +57,9 @@ model RemoveLiquidityEvent {
 
 model Point {
   userAddr  String  @id @map("user_addr")
-  hivePoint Decimal @default(0) @map("hive_point") @db.Decimal(65, 0)
-  mapoPoint Decimal @default(0) @map("mapo_point") @db.Decimal(65, 0)
+  hivePoint Decimal @default(0) @map("hive_point") @db.Decimal(65, 6) // lp point
+  mapoPoint Decimal @default(0) @map("mapo_point") @db.Decimal(65, 6) // bridge point
+  point     Decimal @default(0) @db.Decimal(65, 6)
   timestamp Int
 
   @@map("points")
@@ -63,7 +69,7 @@ model PointHistory {
   id        Int     @id @default(autoincrement())
   userAddr  String  @map("user_addr")
   timestamp Int
-  point     Decimal @db.Decimal(65, 0)
+  point     Decimal @db.Decimal(65, 6)
   action    Int // 0=>hive point, 1=>mapo point
   epollId   Int     @map("epoll_id")
   eventId   String  @unique @map("event_id")

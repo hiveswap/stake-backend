@@ -1,14 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { JsonRpcProvider, Contract, EventFragment, FetchRequest, Wallet } from 'ethers';
-import { stakeAbi, liquidityAbi } from '../resources/contract/abi';
+import { Contract, EventFragment, FetchRequest, JsonRpcProvider, Wallet } from 'ethers';
+import { liquidityAbi, stakeAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
-import { AddLiquidityEvent, LockEvent, PrismaPromise, RemoveLiquidityEvent } from '@prisma/client';
+import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityEvent } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { Logger } from '@nestjs/common';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
 import { poolMap } from 'src/utils/constants';
+import { BRIDGE_ADDRESS, BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER } from '../config/contracts';
+import { BridgeABI } from '../resources/abis/bridge';
+import { prices } from '../config/price';
 
 @Injectable()
 export class IndexerService {
@@ -17,6 +19,7 @@ export class IndexerService {
   retryTimes: number;
   lockerContract: Contract;
   liquidityContract: Contract;
+  bridgeContract: Contract;
   latestBlockId: number;
 
   constructor(private readonly prisma: PrismaService) {
@@ -32,6 +35,7 @@ export class IndexerService {
     this.lockerContract = new Contract(configurations().stakeContractAddr, stakeAbi);
     const wallet = new Wallet(configurations().privateKey, this.provider);
     this.liquidityContract = new Contract(configurations().liquidityContractAddr, liquidityAbi, wallet);
+    this.bridgeContract = new Contract(BRIDGE_ADDRESS, BridgeABI, wallet);
   }
 
   onModuleInit() {
@@ -39,7 +43,7 @@ export class IndexerService {
   }
 
   async start() {
-    let startBlock = configurations().startBlockNum;
+    let startBlock = START_BLOCK_NUMBER;
     Logger.log(`Indexer starts to work at block[${startBlock}]`, 'Indexer');
     // get the synced block number, if not found in db, create it
     const indexedBlockNum = await this.prisma.indexedRecord.findFirst({});
@@ -58,11 +62,6 @@ export class IndexerService {
       this.latestBlockId = insertRes.id;
     }
 
-    const lockTopic = this.lockerContract.interface.getEvent('Lock');
-    if (!lockTopic) {
-      throw new Error('Lock event not found');
-    }
-
     const addLiquidityTopic = this.liquidityContract.interface.getEvent('AddLiquidity');
     if (!addLiquidityTopic) {
       throw new Error('AddLiquidity event not found');
@@ -70,6 +69,11 @@ export class IndexerService {
 
     const decLiquidityTopic = this.liquidityContract.interface.getEvent('DecLiquidity');
     if (!decLiquidityTopic) {
+      throw new Error('DecLiquidity event not found');
+    }
+
+    const bridgeTopic = this.bridgeContract.interface.getEvent('mapSwapIn');
+    if (!bridgeTopic) {
       throw new Error('DecLiquidity event not found');
     }
 
@@ -87,16 +91,14 @@ export class IndexerService {
 
         const ev: PrismaPromise<any>[] = [];
         Logger.log(`Fetch events from block ${startBlock} to ${latestBlockNum}`, 'Indexer');
-        // parse logs from startBlock to latest block number
-        const lockEvents = await this.#parseLockEvents(startBlock, latestBlockNum, lockTopic);
+
+        const bridgeEvents = await this.#parseBridgeEvents(startBlock, latestBlockNum, bridgeTopic);
         const liquidityEvents = await this.#parseAddLiquidityEvents(startBlock, latestBlockNum, addLiquidityTopic);
         const decLiquidityEvents = await this.#parseDecLiquidityEvents(startBlock, latestBlockNum, decLiquidityTopic);
 
-        if (!lockEvents && !liquidityEvents && !decLiquidityEvents) {
+        if (!bridgeEvents && !liquidityEvents && !decLiquidityEvents) {
           if (startBlock < latestBlockNum) {
-            await this.#updateLatestBlock({
-              blockNumber: latestBlockNum,
-            });
+            await this.#updateLatestBlock({ blockNumber: latestBlockNum });
             Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
             startBlock = latestBlockNum;
           }
@@ -104,21 +106,23 @@ export class IndexerService {
         }
 
         // update parsed events
-        if (lockEvents) {
-          ev.push(this.prisma.lockEvent.createMany({ data: lockEvents, skipDuplicates: true }));
-          Logger.log(`Parsed ${lockEvents.length} stake events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
+        if (bridgeEvents) {
+          ev.push(this.prisma.bridgeEvent.createMany({ data: bridgeEvents, skipDuplicates: true }));
+          ev.push(...this.generatePointTxs(bridgeEvents));
+          ev.push(this.generatePointHistoryTx(bridgeEvents));
+          Logger.log(`Parsed ${bridgeEvents.length} stake events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
         }
+
         if (liquidityEvents) {
           ev.push(this.prisma.addLiquidityEvent.createMany({ data: liquidityEvents, skipDuplicates: true }));
           Logger.log(`Parsed ${liquidityEvents.length} addLiquidity events from block ${startBlock} to block ${latestBlockNum}`, 'Indexer');
         }
+
         if (decLiquidityEvents) {
           ev.push(this.prisma.removeLiquidityEvent.createMany({ data: decLiquidityEvents, skipDuplicates: true }));
-          Logger.log(
-            `Parsed ${decLiquidityEvents.length} decLiquidity events from block ${startBlock} to block ${latestBlockNum}`,
-            'Indexer',
-          );
+          Logger.log(`Parsed ${decLiquidityEvents.length} decLiquidity events from block [${startBlock}-${latestBlockNum}]`, 'Indexer');
         }
+
         // update parsed blockNumber
         ev.push(
           this.prisma.indexedRecord.update({
@@ -133,45 +137,108 @@ export class IndexerService {
         await this.prisma.$transaction(ev);
         startBlock = latestBlockNum;
         Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
-      } catch (_) {
-        continue;
+      } catch (e) {
+        console.error(e);
+        Logger.error(e, 'Indexer');
       }
     }
   }
 
-  async #parseLockEvents(startBlock: number, latestBlockNum: number, lockTopic: EventFragment): Promise<LockEvent[] | null> {
-    return new Promise(async (resolve) => {
-      const logs = await this.provider.getLogs({
-        fromBlock: startBlock,
-        toBlock: latestBlockNum,
-        address: this.lockerContract.target,
-        topics: [lockTopic.topicHash],
+  generatePointTxs = (bridgeEvents: any[]) => {
+    return bridgeEvents.map((event) => {
+      const price = prices[event.tokenAddr];
+      if (!price) throw new Error(`not found price ${event.tokenAddr}`);
+      const point = BRIDGE_POINT_PER_DOLLAR.multipliedBy(event.amount)
+        .div(10 ** 18)
+        .multipliedBy(price)
+        .toFixed(6);
+      return this.prisma.point.upsert({
+        where: {
+          userAddr: event.to,
+        },
+        create: {
+          userAddr: event.to,
+          mapoPoint: new Prisma.Decimal(Number(point)),
+          hivePoint: new Prisma.Decimal(0),
+          point: new Prisma.Decimal(Number(point)),
+          timestamp: new Date().getTime() / 1000,
+        },
+        update: {
+          mapoPoint: {
+            increment: new Prisma.Decimal(point),
+          },
+          point: {
+            increment: new Prisma.Decimal(point),
+          },
+          timestamp: new Date().getTime() / 1000,
+        },
       });
-
-      if (!logs || logs.length === 0) {
-        return resolve(null);
-      }
-
-      const events: LockEvent[] = [];
-      for (let i = 0; i < logs.length; i++) {
-        const log = logs[i];
-        const parsed = this.lockerContract.interface.decodeEventLog(lockTopic, log.data, log.topics);
-
-        const block = await log.getBlock();
-        const tx = await log.getTransaction();
-
-        events.push({
-          id: 0,
-          timestamp: block.timestamp,
-          userAddr: parsed.user,
-          amount: parsed.amount.toString(),
-          tokenAddr: parsed.token,
-          eventId: tx.hash + '-' + log.index,
-        });
-      }
-
-      resolve(events);
     });
+  };
+  generatePointHistoryTx = (bridgeEvents: any[]) => {
+    const data = bridgeEvents.map((event) => {
+      const price = prices[event.tokenAddr];
+      if (!price) throw new Error('not found price');
+      const point = BRIDGE_POINT_PER_DOLLAR.multipliedBy(event.amount)
+        .div(10 ** 18)
+        .multipliedBy(price)
+        .toFixed(6);
+      console.log(point);
+      return {
+        userAddr: event.to,
+        timestamp: event.timestamp,
+        point: new Prisma.Decimal(Number(point)),
+        action: 1,
+        eventId: event.eventId,
+        epollId: 0,
+      };
+    });
+    return this.prisma.pointHistory.createMany({
+      data: data,
+      skipDuplicates: true,
+    });
+  };
+
+  async #parseBridgeEvents(startBlock: number, latestBlockNum: number, topic: EventFragment) {
+    const started = startBlock < START_SYNC_BRIDGE_BLOCK_NUMBER ? START_SYNC_BRIDGE_BLOCK_NUMBER : startBlock;
+    const logs = await this.provider.getLogs({
+      fromBlock: started,
+      toBlock: latestBlockNum,
+      address: BRIDGE_ADDRESS,
+      topics: [topic.topicHash],
+    });
+
+    if (!logs || logs.length === 0) {
+      return null;
+    }
+
+    const events: BridgeEvent[] = [];
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
+      const parsed = this.bridgeContract.interface.decodeEventLog(topic, log.data, log.topics);
+
+      if (parsed.toChain !== 22776n || parsed.fromChain !== 4200n) {
+        continue;
+      }
+
+      const block = await log.getBlock();
+
+      events.push({
+        id: 0,
+        timestamp: block.timestamp,
+        blockNumber: log.blockNumber,
+        fromChainId: parsed.fromChain,
+        toChainId: parsed.toChain,
+        amount: parsed.amountOut.toString(),
+        tokenAddr: parsed.token.toLowerCase(),
+        from: parsed.from,
+        to: parsed.toAddress,
+        orderId: parsed.orderId,
+        eventId: log.transactionHash + '-' + log.index,
+      });
+    }
+
+    return events;
   }
 
   async #parseAddLiquidityEvents(
