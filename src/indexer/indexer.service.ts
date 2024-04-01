@@ -256,7 +256,7 @@ export class IndexerService {
       const events: AddLiquidityEvent[] = [];
       for (let i = 0; i < logs.length; i++) {
         const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
-        if (!poolMap.has(parsed.pool)) {
+        if (!poolMap.has(parsed.pool.toLowerCase())) {
           continue;
         }
         const timestamp = (await logs[i].getBlock()).timestamp;
@@ -267,8 +267,8 @@ export class IndexerService {
           id: 0,
           timestamp: timestamp,
           userAddr: user,
-          tokenX: poolMap.get(parsed.pool)?.tokenX.address ?? '',
-          tokenY: poolMap.get(parsed.pool)?.tokenY.address ?? '',
+          tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
+          tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
           eventId: tx.hash + '-' + logs[i].index,
@@ -299,7 +299,7 @@ export class IndexerService {
       for (let i = 0; i < logs.length; i++) {
         const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
 
-        if (!poolMap.has(parsed.pool)) {
+        if (!poolMap.has(parsed.pool.toLowerCase())) {
           continue;
         }
         const timestamp = (await logs[i].getBlock()).timestamp;
@@ -310,8 +310,8 @@ export class IndexerService {
           id: 0,
           timestamp: timestamp,
           userAddr: user,
-          tokenX: poolMap.get(parsed.pool)?.tokenX.address ?? '',
-          tokenY: poolMap.get(parsed.pool)?.tokenY.address ?? '',
+          tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
+          tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
           eventId: tx.hash + '-' + logs[i].index,

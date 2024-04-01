@@ -2,7 +2,7 @@ import BigNumber from 'bignumber.js';
 
 export const poolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> = new Map([
   [
-    '0x3DDc9DE7A05149c9aA40Df3318a55F567de02173',
+    '0x3ddc9de7a05149c9aa40df3318a55f567de02173',
     {
       tokenX: {
         address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
@@ -15,7 +15,7 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
     },
   ],
   [
-    '0x9a9A54Da258Cc872dd61A52C130540C9E256C314',
+    '0x9a9a54da258cc872dd61a52c130540c9e256c314',
     {
       tokenX: {
         address: '0x05ab928d446d8ce6761e368c8e7be03c3168a9ec',
@@ -28,7 +28,7 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
     },
   ],
   [
-    '0xEEa5b6e4863F59CC72370BD6BF329bE5F25B438D',
+    '0xeea5b6e4863f59cc72370bd6bf329be5f25b438d',
     {
       tokenX: {
         address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
