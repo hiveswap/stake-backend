@@ -79,19 +79,19 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
       },
     },
   ],
-  [
-    '0x4b8d6d8e541e3711ed4b47ac44254c302d6d4c54',
-    {
-      tokenX: {
-        address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
-        symbol: 'MAPO',
-      },
-      tokenY: {
-        address: '0x3e76def74d4187b5a01abe4e011bd94d9f057d94',
-        symbol: 'ROUP',
-      },
-    },
-  ],
+  // [
+  //   '0x4b8d6d8e541e3711ed4b47ac44254c302d6d4c54',
+  //   {
+  //     tokenX: {
+  //       address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
+  //       symbol: 'MAPO',
+  //     },
+  //     tokenY: {
+  //       address: '0x3e76def74d4187b5a01abe4e011bd94d9f057d94',
+  //       symbol: 'ROUP',
+  //     },
+  //   },
+  // ],
   [
     '0xd2f5960b1dc80b056248738b1a52bd978d6371db',
     {
@@ -119,15 +119,15 @@ export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   // LSGS
   ['0x756af1d3810a01d3292fad62f295bbcc6c200aea', new BigNumber(0.0001584)],
   // BTC
-  ['0xb877E3562a660C7861117c2f1361A26ABaF19bEB', new BigNumber(70234)],
+  ['0xb877e3562a660c7861117c2f1361a26abaf19beb', new BigNumber(70234)],
   // M-BTC
   ['0x1d22c0ab633f393c84a98cf4f2fad10ba47bb7b3', new BigNumber(70234)],
   // ROUP
-  ['0x5a1c3f3aaE616146C7b9bf9763E0ABA9bAFc5eaE', new BigNumber(0.0028332)],
+  // ['0x5a1c3f3aaE616146C7b9bf9763E0ABA9bAFc5eaE', new BigNumber(0.0028332)],
   // SolvBTC
-  ['0x7eB8B1fE3EE3287FD5864e50f32322ce3285b39D', new BigNumber(70234)],
+  ['0x7eb8b1fe3ee3287fd5864e50f32322ce3285b39d', new BigNumber(70234)],
   // iUSD
-  ['0x61899CE1396FF351e5fdb9c8AD36FeE9411c73c2', new BigNumber(1)],
+  ['0x61899ce1396ff351e5fdb9c8ad36fee9411c73c2', new BigNumber(1)],
   // STST
   ['0xf5a59f961a8e86285dae2e45ac4ae50e4e47ba97', new BigNumber(0.00002)],
 ]);
