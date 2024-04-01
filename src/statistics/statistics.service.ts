@@ -5,6 +5,7 @@ import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
 import { P_POINT_PER_HOUR } from '../config/point';
+import { tokenAddrToPrice } from 'src/utils/constants';
 
 @Injectable()
 export class StatisticsService {
@@ -157,7 +158,7 @@ export class StatisticsService {
           });
         }),
         ...Array.from(userNewTotal.keys()).map((userAddr) => {
-          const amount = (userLiquidities.get(userAddr) ?? new BigNumber(0)).toFixed(2);
+          const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(2);
           return this.prisma.userCurrentLPAmount.upsert({
             where: {
               userAddr: userAddr,
@@ -176,7 +177,15 @@ export class StatisticsService {
   }
 
   #getTokenInUSD(tokenX: string, tokenY: string, amountX: string, amountY: string): BigNumber {
-    return new BigNumber(amountX).plus(new BigNumber(amountY));
+    const amountXNum = new BigNumber(amountX);
+    const amountYNum = new BigNumber(amountY);
+    const decimal = new BigNumber(10 ** 18);
+    const res = tokenAddrToPrice
+      .get(tokenX)
+      ?.multipliedBy(amountXNum)
+      .div(decimal)
+      .plus(tokenAddrToPrice.get(tokenY)?.multipliedBy(amountYNum).div(decimal) ?? new BigNumber(0));
+    return res ?? new BigNumber(0);
   }
 
   #mergeMaps<T>(map1: Map<T, BigNumber>, map2: Map<T, BigNumber>): Map<T, BigNumber> {
