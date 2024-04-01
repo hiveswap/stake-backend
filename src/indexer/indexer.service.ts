@@ -145,10 +145,9 @@ export class IndexerService {
   generatePointTxs = (bridgeEvents: any[]) => {
     return bridgeEvents.map((event) => {
       const price = prices[event.tokenAddr];
-      if (!price) throw new Error(`not found price ${event.tokenAddr}`);
       const point = BRIDGE_POINT_PER_DOLLAR.multipliedBy(event.amount)
         .div(10 ** 18)
-        .multipliedBy(price)
+        .multipliedBy(price ?? 0)
         .toFixed(6);
       return this.prisma.point.upsert({
         where: {
@@ -174,12 +173,10 @@ export class IndexerService {
   generatePointHistoryTx = (bridgeEvents: any[]) => {
     const data = bridgeEvents.map((event) => {
       const price = prices[event.tokenAddr];
-      if (!price) throw new Error('not found price');
       const point = BRIDGE_POINT_PER_DOLLAR.multipliedBy(event.amount)
         .div(10 ** 18)
-        .multipliedBy(price)
+        .multipliedBy(price ?? 0)
         .toFixed(6);
-      console.log(point);
       return {
         userAddr: event.to,
         timestamp: event.timestamp,

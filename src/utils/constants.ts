@@ -109,13 +109,13 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
 
 export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   // WMAP
-  ['0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23', new BigNumber(0.034)],
+  ['0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23', new BigNumber(0.031)],
   // USDT
   ['0x33daba9618a75a7aff103e53afe530fbacf4a3dd', new BigNumber(1)],
   // ETH
   ['0x05ab928d446d8ce6761e368c8e7be03c3168a9ec', new BigNumber(3543.96)],
   // stMAPO
-  ['0x9bd1e0a3a727d0d4f4e9a6d59022e071ddc79924', new BigNumber(0.034)],
+  ['0x9bd1e0a3a727d0d4f4e9a6d59022e071ddc79924', new BigNumber(0.031)],
   // LSGS
   ['0x756af1d3810a01d3292fad62f295bbcc6c200aea', new BigNumber(0.0001584)],
   // BTC
