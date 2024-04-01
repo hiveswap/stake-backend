@@ -4,7 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
-import { P_POINT_PER_HOUR } from '../config/point';
+import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR } from '../config/point';
 import { tokenAddrToPrice } from 'src/utils/constants';
 
 @Injectable()
@@ -64,7 +64,8 @@ export class StatisticsService {
           },
         },
       });
-      if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
+
+      // if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
 
       const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
         if (acc.has(cur.userAddr)) {
@@ -113,8 +114,8 @@ export class StatisticsService {
         return acc;
       }, new Map<string, BigNumber>());
       const action = 0;
-      await this.prisma.$transaction([
-        // update index record
+      const txs = [];
+      txs.push(
         this.prisma.indexedRecord.update({
           where: {
             id: record.id,
@@ -122,40 +123,6 @@ export class StatisticsService {
           data: {
             pointCheckpoint: ended,
           },
-        }),
-        // update point history
-        this.prisma.pointHistory.createMany({
-          data: Array.from(userPoints.keys()).map((up) => ({
-            id: 0,
-            userAddr: up,
-            point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
-            action: action,
-            timestamp: new Date().getTime() / 1000,
-            epollId: rightTick,
-            eventId: `${up}-${rightTick}-${action}`,
-          })),
-          skipDuplicates: true,
-        }),
-        ...Array.from(userPoints.keys()).map((userAddr) => {
-          const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2));
-          return this.prisma.point.upsert({
-            where: {
-              userAddr: userAddr,
-            },
-            create: {
-              userAddr: userAddr,
-              hivePoint: point,
-              point: point,
-            },
-            update: {
-              hivePoint: {
-                increment: point,
-              },
-              point: {
-                increment: point,
-              },
-            },
-          });
         }),
         ...Array.from(userNewTotal.keys()).map((userAddr) => {
           const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(2);
@@ -172,7 +139,45 @@ export class StatisticsService {
             },
           });
         }),
-      ]);
+      );
+      if (i > P_POINT_EPOLL_START_TIME) {
+        txs.push(
+          this.prisma.pointHistory.createMany({
+            data: Array.from(userPoints.keys()).map((up) => ({
+              id: 0,
+              userAddr: up,
+              point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
+              action: action,
+              timestamp: new Date().getTime() / 1000,
+              epollId: rightTick,
+              eventId: `${up}-${rightTick}-${action}`,
+            })),
+            skipDuplicates: true,
+          }),
+          ...Array.from(userPoints.keys()).map((userAddr) => {
+            const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2));
+            return this.prisma.point.upsert({
+              where: {
+                userAddr: userAddr,
+              },
+              create: {
+                userAddr: userAddr,
+                hivePoint: point,
+                point: point,
+              },
+              update: {
+                hivePoint: {
+                  increment: point,
+                },
+                point: {
+                  increment: point,
+                },
+              },
+            });
+          }),
+        );
+      }
+      await this.prisma.$transaction(txs);
     }
   }
 

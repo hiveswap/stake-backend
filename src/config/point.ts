@@ -1,1 +1,3 @@
 export const P_POINT_PER_HOUR = 12500; // 300000 / 24
+
+export const P_POINT_EPOLL_START_TIME = 1711993500;
