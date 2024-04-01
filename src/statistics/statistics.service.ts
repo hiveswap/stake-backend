@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
@@ -11,12 +11,16 @@ export class StatisticsService {
   retryTimes: number;
   retryInterval: number;
 
+  onModuleInit() {
+    this.handlePointHistory();
+  }
+
   constructor(private readonly prisma: PrismaService) {
     this.retryTimes = configurations().retryTimes;
     this.retryInterval = configurations().retryInterval;
   }
 
-  @Cron('*/30 * * * * *')
+  @Cron(CronExpression.EVERY_HOUR)
   async handlePointHistory() {
     Logger.log('Handle point history', 'StatisticsService');
     const record = await this.prisma.indexedRecord.findFirst({});
@@ -40,12 +44,13 @@ export class StatisticsService {
     }
 
     const ended = Math.floor(new Date().getTime() / 1000);
-    for (let i = started; i < ended; i = i + 60 * 60) {
-      const rightTick = i + 60 * 60;
+    const timeGap = 60 * 60;
+    for (let i = started; i < ended; i = i + timeGap) {
+      const rightTick = i + timeGap;
       const addLiquidityEvents = await this.prisma.addLiquidityEvent.findMany({
         where: {
           timestamp: {
-            gte: started,
+            gte: i,
             lt: rightTick,
           },
         },
@@ -53,7 +58,7 @@ export class StatisticsService {
       const removeLiquidityEvents = await this.prisma.removeLiquidityEvent.findMany({
         where: {
           timestamp: {
-            gte: started,
+            gte: i,
             lt: rightTick,
           },
         },
@@ -171,7 +176,6 @@ export class StatisticsService {
   }
 
   #getTokenInUSD(tokenX: string, tokenY: string, amountX: string, amountY: string): BigNumber {
-    console.log(tokenX, tokenY);
     return new BigNumber(amountX).plus(new BigNumber(amountY));
   }
 
