@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Contract, EventFragment, FetchRequest, JsonRpcProvider, Wallet } from 'ethers';
-import { liquidityAbi, stakeAbi } from '../resources/contract/abi';
+import { liquidityAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
 import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityEvent } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -17,7 +17,6 @@ export class IndexerService {
   provider: JsonRpcProvider;
   retryInterval: number;
   retryTimes: number;
-  lockerContract: Contract;
   liquidityContract: Contract;
   bridgeContract: Contract;
   latestBlockId: number;
@@ -32,7 +31,6 @@ export class IndexerService {
     this.provider = new JsonRpcProvider(fetchReq);
     this.retryInterval = configurations().retryInterval;
     this.retryTimes = configurations().retryTimes;
-    this.lockerContract = new Contract(configurations().stakeContractAddr, stakeAbi);
     const wallet = new Wallet(configurations().privateKey, this.provider);
     this.liquidityContract = new Contract(configurations().liquidityContractAddr, liquidityAbi, wallet);
     this.bridgeContract = new Contract(BRIDGE_ADDRESS, BridgeABI, wallet);
@@ -258,21 +256,19 @@ export class IndexerService {
       const events: AddLiquidityEvent[] = [];
       for (let i = 0; i < logs.length; i++) {
         const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
-
-        const poolID = await retry(this.liquidityContract.poolIds, this.retryTimes, this.retryInterval, this, parsed.pool);
-        const tokens = await retry(this.liquidityContract.poolMetas, this.retryTimes, this.retryInterval, this, poolID);
-        const index = [tokens.tokenX, tokens.tokenY].join(',');
-        if (!poolMap.has(index)) {
+        if (!poolMap.has(parsed.pool)) {
           continue;
         }
+        const timestamp = (await logs[i].getBlock()).timestamp;
+
         const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
         const user = tx.from;
         events.push({
           id: 0,
-          timestamp: new Date().getTime() / 1000,
+          timestamp: timestamp,
           userAddr: user,
-          tokenX: tokens.tokenX,
-          tokenY: tokens.tokenY,
+          tokenX: poolMap.get(parsed.pool)?.tokenX.address ?? '',
+          tokenY: poolMap.get(parsed.pool)?.tokenY.address ?? '',
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
           eventId: tx.hash + '-' + logs[i].index,
@@ -303,21 +299,19 @@ export class IndexerService {
       for (let i = 0; i < logs.length; i++) {
         const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
 
-        const poolID = await retry(this.liquidityContract.poolIds, this.retryTimes, this.retryInterval, this, parsed.pool);
-        const tokens = await retry(this.liquidityContract.poolMetas, this.retryTimes, this.retryInterval, this, poolID);
-        const index = [tokens.tokenX, tokens.tokenY].join(',');
-        if (!poolMap.has(index)) {
+        if (!poolMap.has(parsed.pool)) {
           continue;
         }
+        const timestamp = (await logs[i].getBlock()).timestamp;
         const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
         const user = tx.from;
 
         events.push({
           id: 0,
-          timestamp: new Date().getTime() / 1000,
+          timestamp: timestamp,
           userAddr: user,
-          tokenX: tokens.tokenX,
-          tokenY: tokens.tokenY,
+          tokenX: poolMap.get(parsed.pool)?.tokenX.address ?? '',
+          tokenY: poolMap.get(parsed.pool)?.tokenY.address ?? '',
           amountX: parsed.amountX.toString(),
           amountY: parsed.amountY.toString(),
           eventId: tx.hash + '-' + logs[i].index,
