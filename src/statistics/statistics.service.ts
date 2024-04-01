@@ -124,7 +124,7 @@ export class StatisticsService {
         }),
         // update point history
         this.prisma.pointHistory.createMany({
-          data: Array.from(userPoints.keys()).map((up) => ({
+          data: Array.from(userLiquidities.keys()).map((up) => ({
             id: 0,
             userAddr: up,
             point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
