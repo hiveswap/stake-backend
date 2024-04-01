@@ -40,6 +40,71 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
       },
     },
   ],
+  [
+    '0xf14462d71b579d19c47f4e0eaf2c50c641be40b6',
+    {
+      tokenX: {
+        address: '0x1d22c0ab633f393c84a98cf4f2fad10ba47bb7b3',
+        symbol: 'M-BTC',
+      },
+      tokenY: {
+        address: '0xb877e3562a660c7861117c2f1361a26abaf19beb',
+        symbol: 'BTC',
+      },
+    },
+  ],
+  [
+    '0x68f6898102dc74adf1bc0078fbe6447fb1b7f419',
+    {
+      tokenX: {
+        address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
+        symbol: 'MAPO',
+      },
+      tokenY: {
+        address: '0x756af1d3810a01d3292fad62f295bbcc6c200aea',
+        symbol: 'LSGS',
+      },
+    },
+  ],
+  [
+    '0x195e585f06121eb1af2d70b8a2e7346b0483c155',
+    {
+      tokenX: {
+        address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
+        symbol: 'MAPO',
+      },
+      tokenY: {
+        address: '0x9bd1e0a3a727d0d4f4e9a6d59022e071ddc79924',
+        symbol: 'stMAPO',
+      },
+    },
+  ],
+  [
+    '0x4b8d6d8e541e3711ed4b47ac44254c302d6d4c54',
+    {
+      tokenX: {
+        address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
+        symbol: 'MAPO',
+      },
+      tokenY: {
+        address: '0x3e76def74d4187b5a01abe4e011bd94d9f057d94',
+        symbol: 'ROUP',
+      },
+    },
+  ],
+  [
+    '0xd2f5960b1dc80b056248738b1a52bd978d6371db',
+    {
+      tokenX: {
+        address: '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23',
+        symbol: 'MAPO',
+      },
+      tokenY: {
+        address: '0xf5a59f961a8e86285dae2e45ac4ae50e4e47ba97',
+        symbol: 'STST',
+      },
+    },
+  ],
 ]);
 
 export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
@@ -64,5 +129,5 @@ export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   // iUSD
   ['0x61899CE1396FF351e5fdb9c8AD36FeE9411c73c2', new BigNumber(1)],
   // STST
-  ['0xf5a59f961a8e86285dae2e45ac4ae50e4e47ba97', new BigNumber(1)],
+  ['0xf5a59f961a8e86285dae2e45ac4ae50e4e47ba97', new BigNumber(0.00002)],
 ]);
