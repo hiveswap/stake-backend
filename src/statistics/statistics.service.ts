@@ -26,7 +26,7 @@ export class StatisticsService {
   async handlePointHistory() {
     Logger.log('Handle point history', 'StatisticsService');
     try {
-      const record = await this.prisma.indexedRecord.findFirst({});
+      const record = await retry(this.prisma.indexedRecord.findFirst, this.retryTimes, this.retryInterval, this.prisma, {});
       if (!record) {
         return;
       }
@@ -55,7 +55,7 @@ export class StatisticsService {
         if (rightTick > ended) {
           break;
         }
-        const addLiquidityEvents = await this.prisma.addLiquidityEvent.findMany({
+        const addLiquidityEvents = await retry(this.prisma.addLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this.prisma, {
           where: {
             timestamp: {
               gte: i,
@@ -63,14 +63,20 @@ export class StatisticsService {
             },
           },
         });
-        const removeLiquidityEvents = await this.prisma.removeLiquidityEvent.findMany({
-          where: {
-            timestamp: {
-              gte: i,
-              lt: rightTick,
+        const removeLiquidityEvents = await retry(
+          this.prisma.removeLiquidityEvent.findMany,
+          this.retryTimes,
+          this.retryInterval,
+          this.prisma,
+          {
+            where: {
+              timestamp: {
+                gte: i,
+                lt: rightTick,
+              },
             },
           },
-        });
+        );
 
         // if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
 
@@ -102,7 +108,7 @@ export class StatisticsService {
 
         const userLiquidities = this.#mergeMaps(userAddLiquidities, userRemoveLiquidities);
 
-        const userLastTotal = await this.prisma.userCurrentLPAmount.findMany({});
+        const userLastTotal = await retry(this.prisma.userCurrentLPAmount.findMany, this.retryTimes, this.retryInterval, this.prisma, {});
 
         const userLastTotalMap = userLastTotal.reduce((acc, cur) => {
           acc.set(cur.userAddr, new BigNumber(cur.amount));

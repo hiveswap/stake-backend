@@ -137,7 +137,6 @@ export class IndexerService {
         startBlock = latestBlockNum;
         Logger.log(`Update synced block to ${latestBlockNum} success`, 'Indexer');
       } catch (e) {
-        console.error(e);
         Logger.error(e, 'Indexer');
       }
     }
