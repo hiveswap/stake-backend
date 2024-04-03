@@ -249,40 +249,44 @@ export class IndexerService {
     latestBlockNum: number,
     addLiquidityTopic: EventFragment,
   ): Promise<AddLiquidityEvent[] | null> {
-    return new Promise(async (resolve) => {
-      const logs = await retry(this.provider.getLogs, this.retryTimes, this.retryInterval, this.provider, {
-        fromBlock: startBlock,
-        toBlock: latestBlockNum,
-        address: this.liquidityContract.target,
-        topics: [addLiquidityTopic.topicHash],
-      });
-
-      if (!logs || logs.length === 0) {
-        return resolve(null);
-      }
-      const events: AddLiquidityEvent[] = [];
-      for (let i = 0; i < logs.length; i++) {
-        const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
-        if (!poolMap.has(parsed.pool.toLowerCase())) {
-          continue;
-        }
-        const timestamp = (await logs[i].getBlock()).timestamp;
-
-        const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
-        const user = tx.from;
-        events.push({
-          id: 0,
-          timestamp: timestamp,
-          userAddr: user,
-          tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
-          tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
-          amountX: parsed.amountX.toString(),
-          amountY: parsed.amountY.toString(),
-          eventId: tx.hash + '-' + logs[i].index,
+    return new Promise(async (resolve, reject) => {
+      try {
+        const logs = await retry(this.provider.getLogs, this.retryTimes, this.retryInterval, this.provider, {
+          fromBlock: startBlock,
+          toBlock: latestBlockNum,
+          address: this.liquidityContract.target,
+          topics: [addLiquidityTopic.topicHash],
         });
-      }
 
-      resolve(events);
+        if (!logs || logs.length === 0) {
+          return resolve(null);
+        }
+        const events: AddLiquidityEvent[] = [];
+        for (let i = 0; i < logs.length; i++) {
+          const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
+          if (!poolMap.has(parsed.pool.toLowerCase())) {
+            continue;
+          }
+          const timestamp = (await logs[i].getBlock()).timestamp;
+
+          const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
+          const user = tx.from;
+          events.push({
+            id: 0,
+            timestamp: timestamp,
+            userAddr: user,
+            tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
+            tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
+            amountX: parsed.amountX.toString(),
+            amountY: parsed.amountY.toString(),
+            eventId: tx.hash + '-' + logs[i].index,
+          });
+        }
+
+        resolve(events);
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 
@@ -291,40 +295,44 @@ export class IndexerService {
     latestBlockNum: number,
     decLiquidityTopic: EventFragment,
   ): Promise<AddLiquidityEvent[] | null> {
-    return new Promise(async (resolve) => {
-      const logs = await retry(this.provider.getLogs, this.retryTimes, this.retryInterval, this.provider, {
-        fromBlock: startBlock,
-        toBlock: latestBlockNum,
-        address: this.liquidityContract.target,
-        topics: [decLiquidityTopic.topicHash],
-      });
-
-      if (!logs || logs.length === 0) {
-        return resolve(null);
-      }
-      const events: RemoveLiquidityEvent[] = [];
-      for (let i = 0; i < logs.length; i++) {
-        const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
-
-        if (!poolMap.has(parsed.pool.toLowerCase())) {
-          continue;
-        }
-        const timestamp = (await logs[i].getBlock()).timestamp;
-        const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
-        const user = tx.from;
-
-        events.push({
-          id: 0,
-          timestamp: timestamp,
-          userAddr: user,
-          tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
-          tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
-          amountX: parsed.amountX.toString(),
-          amountY: parsed.amountY.toString(),
-          eventId: tx.hash + '-' + logs[i].index,
+    return new Promise(async (resolve, reject) => {
+      try {
+        const logs = await retry(this.provider.getLogs, this.retryTimes, this.retryInterval, this.provider, {
+          fromBlock: startBlock,
+          toBlock: latestBlockNum,
+          address: this.liquidityContract.target,
+          topics: [decLiquidityTopic.topicHash],
         });
+
+        if (!logs || logs.length === 0) {
+          return resolve(null);
+        }
+        const events: RemoveLiquidityEvent[] = [];
+        for (let i = 0; i < logs.length; i++) {
+          const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
+
+          if (!poolMap.has(parsed.pool.toLowerCase())) {
+            continue;
+          }
+          const timestamp = (await logs[i].getBlock()).timestamp;
+          const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
+          const user = tx.from;
+
+          events.push({
+            id: 0,
+            timestamp: timestamp,
+            userAddr: user,
+            tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
+            tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
+            amountX: parsed.amountX.toString(),
+            amountY: parsed.amountY.toString(),
+            eventId: tx.hash + '-' + logs[i].index,
+          });
+        }
+        resolve(events);
+      } catch (err) {
+        reject(err);
       }
-      resolve(events);
     });
   }
 
