@@ -48,6 +48,9 @@ export class StatisticsService {
     const timeGap = 60 * 60;
     for (let i = started; i < ended; i = i + timeGap) {
       const rightTick = i + timeGap;
+      if (rightTick > ended) {
+        break;
+      }
       const addLiquidityEvents = await this.prisma.addLiquidityEvent.findMany({
         where: {
           timestamp: {
