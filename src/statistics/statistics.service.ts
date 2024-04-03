@@ -125,7 +125,7 @@ export class StatisticsService {
           },
         }),
         ...Array.from(userNewTotal.keys()).map((userAddr) => {
-          const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(2);
+          const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(6);
           return this.prisma.userCurrentLPAmount.upsert({
             where: {
               userAddr: userAddr,
@@ -146,7 +146,7 @@ export class StatisticsService {
             data: Array.from(userPoints.keys()).map((up) => ({
               id: 0,
               userAddr: up,
-              point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(2)),
+              point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(6)),
               action: action,
               timestamp: new Date().getTime() / 1000,
               epollId: rightTick,
@@ -155,7 +155,7 @@ export class StatisticsService {
             skipDuplicates: true,
           }),
           ...Array.from(userPoints.keys()).map((userAddr) => {
-            const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(2));
+            const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(6));
             return this.prisma.point.upsert({
               where: {
                 userAddr: userAddr,
