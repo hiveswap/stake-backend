@@ -203,6 +203,7 @@ export class IndexerService {
 
   async #parseBridgeEvents(startBlock: number, latestBlockNum: number, topic: EventFragment) {
     const started = startBlock < START_SYNC_BRIDGE_BLOCK_NUMBER ? START_SYNC_BRIDGE_BLOCK_NUMBER : startBlock;
+
     const logs = await this.provider.getLogs({
       fromBlock: started,
       toBlock: latestBlockNum,
