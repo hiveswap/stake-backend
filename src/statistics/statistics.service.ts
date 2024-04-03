@@ -6,6 +6,7 @@ import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
 import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR } from '../config/config';
 import { tokenAddrToPrice } from 'src/config/tokens';
+import { retry } from 'src/utils/retry';
 
 @Injectable()
 export class StatisticsService {
@@ -24,163 +25,178 @@ export class StatisticsService {
   @Cron(CronExpression.EVERY_HOUR)
   async handlePointHistory() {
     Logger.log('Handle point history', 'StatisticsService');
-    const record = await this.prisma.indexedRecord.findFirst({});
-    if (!record) {
-      return;
-    }
-
-    let started = record.pointCheckpoint;
-    if (record.pointCheckpoint === 0) {
-      const firstAddEvent = await this.prisma.addLiquidityEvent.findFirst({
-        orderBy: {
-          timestamp: 'asc',
-        },
-      });
-
-      if (!firstAddEvent) {
+    try {
+      const record = await retry(this.prisma.indexedRecord.findFirst, this.retryTimes, this.retryInterval, this.prisma, {});
+      if (!record) {
         return;
       }
 
-      started = firstAddEvent.timestamp;
-    }
+      let started = record.pointCheckpoint;
+      if (record.pointCheckpoint === 0) {
+        // @ts-expect-error ts(2024)
+        const firstAddEvent = await retry(this.prisma.addLiquidityEvent.findFirst, this.retryTimes, this.retryInterval, this.prisma, {
+          orderBy: {
+            timestamp: 'asc',
+          },
+        });
 
-    const ended = Math.floor(new Date().getTime() / 1000);
-    const timeGap = 60 * 60;
-    for (let i = started; i < ended; i = i + timeGap) {
-      const rightTick = i + timeGap;
-      if (rightTick > ended) {
-        break;
+        if (!firstAddEvent) {
+          return;
+        }
+
+        // @ts-expect-error ts(2024)
+        started = firstAddEvent.timestamp;
       }
-      const addLiquidityEvents = await this.prisma.addLiquidityEvent.findMany({
-        where: {
-          timestamp: {
-            gte: i,
-            lt: rightTick,
-          },
-        },
-      });
-      const removeLiquidityEvents = await this.prisma.removeLiquidityEvent.findMany({
-        where: {
-          timestamp: {
-            gte: i,
-            lt: rightTick,
-          },
-        },
-      });
 
-      // if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
-
-      const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
-        if (acc.has(cur.userAddr)) {
-          acc.set(
-            cur.userAddr,
-            new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).plus(acc.get(cur.userAddr) ?? 0),
-          );
-        } else {
-          acc.set(cur.userAddr, this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY));
+      const ended = Math.floor(new Date().getTime() / 1000);
+      const timeGap = 60 * 60;
+      for (let i = started; i < ended; i = i + timeGap) {
+        const rightTick = i + timeGap;
+        if (rightTick > ended) {
+          break;
         }
-        return acc;
-      }, new Map<string, BigNumber>());
-
-      const userRemoveLiquidities = removeLiquidityEvents.reduce((acc, cur) => {
-        if (acc.has(cur.userAddr)) {
-          acc.set(
-            cur.userAddr,
-            new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).negated().plus(acc.get(cur.userAddr) ?? 0),
-          );
-        } else {
-          acc.set(cur.userAddr, new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).negated());
-        }
-        return acc;
-      }, new Map<string, BigNumber>());
-
-      const userLiquidities = this.#mergeMaps(userAddLiquidities, userRemoveLiquidities);
-
-      const userLastTotal = await this.prisma.userCurrentLPAmount.findMany({});
-
-      const userLastTotalMap = userLastTotal.reduce((acc, cur) => {
-        acc.set(cur.userAddr, new BigNumber(cur.amount));
-        return acc;
-      }, new Map<string, BigNumber>());
-      const userNewTotal: Map<string, BigNumber> = userLastTotalMap;
-      userLiquidities.forEach((value, key) => {
-        if (userLastTotalMap.has(key)) {
-          userNewTotal.set(key, userLastTotalMap.get(key)?.plus(value) ?? new BigNumber(0));
-        } else {
-          userNewTotal.set(key, value);
-        }
-      });
-
-      const totalLockAmount = Array.from(userNewTotal.values()).reduce((acc, cur) => acc.plus(cur), new BigNumber(0));
-      const userPoints = Array.from(userNewTotal.keys()).reduce((acc, cur) => {
-        acc.set(cur, (userNewTotal.get(cur) ?? new BigNumber(0)).multipliedBy(P_POINT_PER_HOUR).div(totalLockAmount));
-        return acc;
-      }, new Map<string, BigNumber>());
-      const action = 0;
-      const txs = [];
-      txs.push(
-        this.prisma.indexedRecord.update({
+        const addLiquidityEvents = await retry(this.prisma.addLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this.prisma, {
           where: {
-            id: record.id,
+            timestamp: {
+              gte: i,
+              lt: rightTick,
+            },
           },
-          data: {
-            pointCheckpoint: rightTick,
-          },
-        }),
-        ...Array.from(userNewTotal.keys()).map((userAddr) => {
-          const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(6);
-          return this.prisma.userCurrentLPAmount.upsert({
+        });
+        const removeLiquidityEvents = await retry(
+          this.prisma.removeLiquidityEvent.findMany,
+          this.retryTimes,
+          this.retryInterval,
+          this.prisma,
+          {
             where: {
-              userAddr: userAddr,
+              timestamp: {
+                gte: i,
+                lt: rightTick,
+              },
             },
-            create: {
-              userAddr: userAddr,
-              amount: amount,
-            },
-            update: {
-              amount: amount,
-            },
-          });
-        }),
-      );
-      if (i > P_POINT_EPOLL_START_TIME) {
+          },
+        );
+
+        // if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
+
+        const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
+          if (acc.has(cur.userAddr)) {
+            acc.set(
+              cur.userAddr,
+              new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).plus(acc.get(cur.userAddr) ?? 0),
+            );
+          } else {
+            acc.set(cur.userAddr, this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY));
+          }
+          return acc;
+        }, new Map<string, BigNumber>());
+
+        const userRemoveLiquidities = removeLiquidityEvents.reduce((acc, cur) => {
+          if (acc.has(cur.userAddr)) {
+            acc.set(
+              cur.userAddr,
+              new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY))
+                .negated()
+                .plus(acc.get(cur.userAddr) ?? 0),
+            );
+          } else {
+            acc.set(cur.userAddr, new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).negated());
+          }
+          return acc;
+        }, new Map<string, BigNumber>());
+
+        const userLiquidities = this.#mergeMaps(userAddLiquidities, userRemoveLiquidities);
+
+        const userLastTotal = await retry(this.prisma.userCurrentLPAmount.findMany, this.retryTimes, this.retryInterval, this.prisma, {});
+
+        const userLastTotalMap = userLastTotal.reduce((acc, cur) => {
+          acc.set(cur.userAddr, new BigNumber(cur.amount));
+          return acc;
+        }, new Map<string, BigNumber>());
+        const userNewTotal: Map<string, BigNumber> = userLastTotalMap;
+        userLiquidities.forEach((value, key) => {
+          if (userLastTotalMap.has(key)) {
+            userNewTotal.set(key, userLastTotalMap.get(key)?.plus(value) ?? new BigNumber(0));
+          } else {
+            userNewTotal.set(key, value);
+          }
+        });
+
+        const totalLockAmount = Array.from(userNewTotal.values()).reduce((acc, cur) => acc.plus(cur), new BigNumber(0));
+        const userPoints = Array.from(userNewTotal.keys()).reduce((acc, cur) => {
+          acc.set(cur, (userNewTotal.get(cur) ?? new BigNumber(0)).multipliedBy(P_POINT_PER_HOUR).div(totalLockAmount));
+          return acc;
+        }, new Map<string, BigNumber>());
+        const action = 0;
+        const txs = [];
         txs.push(
-          this.prisma.pointHistory.createMany({
-            data: Array.from(userPoints.keys()).map((up) => ({
-              id: 0,
-              userAddr: up,
-              point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(6)),
-              action: action,
-              timestamp: new Date().getTime() / 1000,
-              epollId: rightTick,
-              eventId: `${up}-${rightTick}-${action}`,
-            })),
-            skipDuplicates: true,
+          this.prisma.indexedRecord.update({
+            where: {
+              id: record.id,
+            },
+            data: {
+              pointCheckpoint: rightTick,
+            },
           }),
-          ...Array.from(userPoints.keys()).map((userAddr) => {
-            const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(6));
-            return this.prisma.point.upsert({
+          ...Array.from(userNewTotal.keys()).map((userAddr) => {
+            const amount = (userNewTotal.get(userAddr) ?? new BigNumber(0)).toFixed(6);
+            return this.prisma.userCurrentLPAmount.upsert({
               where: {
                 userAddr: userAddr,
               },
               create: {
                 userAddr: userAddr,
-                hivePoint: point,
-                point: point,
+                amount: amount,
               },
               update: {
-                hivePoint: {
-                  increment: point,
-                },
-                point: {
-                  increment: point,
-                },
+                amount: amount,
               },
             });
           }),
         );
+        if (i > P_POINT_EPOLL_START_TIME) {
+          txs.push(
+            this.prisma.pointHistory.createMany({
+              data: Array.from(userPoints.keys()).map((up) => ({
+                id: 0,
+                userAddr: up,
+                point: new Prisma.Decimal((userPoints.get(up) ?? 0).toFixed(6)),
+                action: action,
+                timestamp: new Date().getTime() / 1000,
+                epollId: rightTick,
+                eventId: `${up}-${rightTick}-${action}`,
+              })),
+              skipDuplicates: true,
+            }),
+            ...Array.from(userPoints.keys()).map((userAddr) => {
+              const point = new Prisma.Decimal((userPoints.get(userAddr) ?? 0).toFixed(6));
+              return this.prisma.point.upsert({
+                where: {
+                  userAddr: userAddr,
+                },
+                create: {
+                  userAddr: userAddr,
+                  hivePoint: point,
+                  point: point,
+                },
+                update: {
+                  hivePoint: {
+                    increment: point,
+                  },
+                  point: {
+                    increment: point,
+                  },
+                },
+              });
+            }),
+          );
+        }
+        // @ts-expect-error ts(2024)
+        await retry(this.prisma.$transaction, this.retryTimes, this.retryInterval, this.prisma, txs);
       }
-      await this.prisma.$transaction(txs);
+    } catch (err) {
+      Logger.error(err);
     }
   }
 
