@@ -121,7 +121,7 @@ export class StatisticsService {
             id: record.id,
           },
           data: {
-            pointCheckpoint: ended,
+            pointCheckpoint: rightTick,
           },
         }),
         ...Array.from(userNewTotal.keys()).map((userAddr) => {
