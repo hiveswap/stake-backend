@@ -4,8 +4,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
-import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR } from '../config/point';
-import { tokenAddrToPrice } from 'src/utils/constants';
+import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR } from '../config/config';
+import { tokenAddrToPrice } from 'src/config/tokens';
 
 @Injectable()
 export class StatisticsService {

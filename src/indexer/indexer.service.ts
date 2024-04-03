@@ -1,16 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Contract, EventFragment, FetchRequest, JsonRpcProvider, Wallet } from 'ethers';
+import { Contract, EventFragment, FetchRequest, JsonRpcProvider, Result, Wallet } from 'ethers';
 import { liquidityAbi } from '../resources/contract/abi';
 import { retry } from '../utils/retry';
 import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityEvent } from '@prisma/client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
-import { poolMap } from 'src/utils/constants';
-import { BRIDGE_ADDRESS, BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER } from '../config/contracts';
+import { poolMap } from 'src/config/tokens';
+import { BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER, SUPPORTED_BRIDGE_TOKENS } from '../config/config';
 import { BridgeABI } from '../resources/abis/bridge';
 import { prices } from '../config/price';
+import { BRIDGE_ADDRESS } from '../config/contracts';
 
 @Injectable()
 export class IndexerService {
@@ -192,6 +193,14 @@ export class IndexerService {
     });
   };
 
+  isRightBridgeEvent(event: Result) {
+    const wrongFromChain = event.fromChain !== 4200n && event.fromChain !== 56n && event.fromChain !== 1n;
+    if (wrongFromChain) return false;
+    if (event.toChain !== 22776n) return false;
+
+    return SUPPORTED_BRIDGE_TOKENS.includes(event.token.toLowerCase());
+  }
+
   async #parseBridgeEvents(startBlock: number, latestBlockNum: number, topic: EventFragment) {
     const started = startBlock < START_SYNC_BRIDGE_BLOCK_NUMBER ? START_SYNC_BRIDGE_BLOCK_NUMBER : startBlock;
     const logs = await this.provider.getLogs({
@@ -210,7 +219,7 @@ export class IndexerService {
       const log = logs[i];
       const parsed = this.bridgeContract.interface.decodeEventLog(topic, log.data, log.topics);
 
-      if (parsed.toChain !== 22776n || parsed.fromChain !== 4200n) {
+      if (!this.isRightBridgeEvent(parsed)) {
         continue;
       }
 

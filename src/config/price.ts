@@ -1,7 +1,8 @@
+import { Tokens } from './tokens';
+
 export const prices: any = {
-  '0x1d22c0ab633f393c84a98cf4f2fad10ba47bb7b3': 68611, // M-BTC
-  '0xb877e3562a660c7861117c2f1361a26abaf19beb': 68611, // BTC
-  '0x13cb04d4a5dfb6398fc5ab005a6c84337256ee23': 0.031, // WMAPO
-  '0x7eB8B1fE3EE3287FD5864e50f32322ce3285b39D': 68611, // SolvBTC
-  '0x61899CE1396FF351e5fdb9c8AD36FeE9411c73c2': 1, // SolvBTC
+  [Tokens.MBTC.address]: 66611,
+  [Tokens.BTC.address]: 66611,
+  [Tokens.SolvBTC.address]: 66611,
+  [Tokens.iUSD.address]: 1,
 };
