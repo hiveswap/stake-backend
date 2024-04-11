@@ -7,7 +7,7 @@ import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityE
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
-import { poolMap } from 'src/config/tokens';
+import { poolMap, Tokens } from 'src/config/tokens';
 import { BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER, SUPPORTED_BRIDGE_TOKENS } from '../config/config';
 import { BridgeABI } from '../resources/abis/bridge';
 import { prices } from '../config/price';
@@ -270,15 +270,23 @@ export class IndexerService {
 
           const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
           const user = tx.from;
+          const tokenX = poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
+          const tokenY = poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
           events.push({
             id: 0,
             timestamp: timestamp,
             userAddr: user,
-            tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
-            tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
+            tokenX: tokenX,
+            tokenY: tokenY,
             amountX: parsed.amountX.toString(),
             amountY: parsed.amountY.toString(),
             eventId: tx.hash + '-' + logs[i].index,
+            valid: this.#isValidOneSideStake({
+              tokenX: tokenX,
+              tokenY: tokenY,
+              amountX: parsed.amountX.toString(),
+              amountY: parsed.amountY.toString(),
+            }),
           });
         }
 
@@ -316,16 +324,23 @@ export class IndexerService {
           const timestamp = (await logs[i].getBlock()).timestamp;
           const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
           const user = tx.from;
-
+          const tokenX = poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
+          const tokenY = poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
           events.push({
             id: 0,
             timestamp: timestamp,
             userAddr: user,
-            tokenX: poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '',
-            tokenY: poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '',
+            tokenX: tokenX,
+            tokenY: tokenY,
             amountX: parsed.amountX.toString(),
             amountY: parsed.amountY.toString(),
             eventId: tx.hash + '-' + logs[i].index,
+            valid: this.#isValidOneSideStake({
+              tokenX: tokenX,
+              tokenY: tokenY,
+              amountX: parsed.amountX.toString(),
+              amountY: parsed.amountY.toString(),
+            }),
           });
         }
         resolve(events);
@@ -342,5 +357,31 @@ export class IndexerService {
         id: this.latestBlockId,
       },
     });
+  }
+
+  // check if a tx is a valid one side stake tx
+  #isValidOneSideStake(event: { tokenX: string; tokenY: string; amountX: string; amountY: string }): boolean {
+    // active token list, including btc, mbtc, solvbtc
+    const activeTokenList = [Tokens.BTC, Tokens.MBTC, Tokens.SolvBTC];
+    // if tokenX stake 0
+    if (event.amountX === '0') {
+      // then tokenY must be in active token list, and tokenY must not be 0
+      if (event.tokenY in activeTokenList && event.tokenY !== '0') {
+        return true;
+      }
+    }
+    // if tokenY stake 0
+    if (event.amountY === '0') {
+      // then tokenX must be in active token list, and tokenX must not be 0
+      if (event.tokenX in activeTokenList && event.tokenX !== '0') {
+        return true;
+      }
+    }
+    // if both not 0, it is valid
+    if (event.amountX !== '0' && event.amountY !== '0') {
+      return true;
+    }
+    // invalid otherwise
+    return false;
   }
 }

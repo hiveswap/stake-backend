@@ -4,7 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
-import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR } from '../config/config';
+import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR, PENDING_ONE_SIDE_STAKE_TIME } from '../config/config';
 import { tokenAddrToPrice } from 'src/config/tokens';
 import { retry } from 'src/utils/retry';
 
@@ -12,6 +12,7 @@ import { retry } from 'src/utils/retry';
 export class StatisticsService {
   retryTimes: number;
   retryInterval: number;
+  cleanedCredit: boolean;
 
   onModuleInit() {
     this.handlePointHistory();
@@ -20,6 +21,7 @@ export class StatisticsService {
   constructor(private readonly prisma: PrismaService) {
     this.retryTimes = configurations().retryTimes;
     this.retryInterval = configurations().retryInterval;
+    this.cleanedCredit = false;
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -55,6 +57,11 @@ export class StatisticsService {
         if (rightTick > ended) {
           break;
         }
+        // reset user lp token value table when the right tick is greater than PENDING_ONE_SIDE_STAKE_TIME
+        if (rightTick >= PENDING_ONE_SIDE_STAKE_TIME && !this.cleanedCredit) {
+          await retry(this.#cleanUserCredit, this.retryTimes, this.retryInterval, this, started, rightTick);
+          this.cleanedCredit = true;
+        }
         const addLiquidityEvents = await retry(this.prisma.addLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this.prisma, {
           where: {
             timestamp: {
@@ -81,6 +88,10 @@ export class StatisticsService {
         // if (addLiquidityEvents.length === 0 && removeLiquidityEvents.length === 0) continue;
 
         const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
+          // once the credit is cleaned, we don't deal with the invalid events anymore
+          if (this.cleanedCredit && !cur.valid) {
+            return acc;
+          }
           if (acc.has(cur.userAddr)) {
             acc.set(
               cur.userAddr,
@@ -93,6 +104,10 @@ export class StatisticsService {
         }, new Map<string, BigNumber>());
 
         const userRemoveLiquidities = removeLiquidityEvents.reduce((acc, cur) => {
+          // once the credit is cleaned, we don't deal with the invalid events anymore
+          if (this.cleanedCredit && !cur.valid) {
+            return acc;
+          }
           if (acc.has(cur.userAddr)) {
             acc.set(
               cur.userAddr,
@@ -196,6 +211,7 @@ export class StatisticsService {
         await retry(this.prisma.$transaction, this.retryTimes, this.retryInterval, this.prisma, txs);
       }
     } catch (err) {
+      console.error(err);
       Logger.error(err);
     }
   }
@@ -212,11 +228,90 @@ export class StatisticsService {
     return res ?? new BigNumber(0);
   }
 
-  #mergeMaps<T>(map1: Map<T, BigNumber>, map2: Map<T, BigNumber>): Map<T, BigNumber> {
-    const res = new Map([...map1]);
+  #mergeMaps<T>(map1: Map<T, BigNumber> | undefined, map2: Map<T, BigNumber> | undefined): Map<T, BigNumber> {
+    let res = new Map<T, BigNumber>();
+    if (map1) {
+      res = new Map([...map1]);
+    }
+    if (!map2) {
+      return res;
+    }
     for (const [key, value] of map2) {
       res.set(key, (res.get(key) ?? new BigNumber(0)).plus(value));
     }
     return res;
+  }
+
+  // clean user credit
+  async #cleanUserCredit(started: number, ended: number) {
+    const txs = [];
+    // find all valid addLiquidityEvents from started to ended
+    const addLiquidityEvents = await retry(this.prisma.addLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this.prisma, {
+      where: {
+        timestamp: {
+          gte: started,
+          lt: ended,
+        },
+        valid: true,
+      },
+    });
+    // find all valid removeLiquidityEvents from started to ended
+    const removeLiquidityEvents = await retry(this.prisma.removeLiquidityEvent.findMany, this.retryTimes, this.retryInterval, this.prisma, {
+      where: {
+        timestamp: {
+          gte: started,
+          lt: ended,
+        },
+        valid: true,
+      },
+    });
+    // convert addLiquidityEvents to map
+    const userAddLiquidities = addLiquidityEvents.reduce((acc, cur) => {
+      if (acc.has(cur.userAddr)) {
+        acc.set(
+          cur.userAddr,
+          new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).plus(acc.get(cur.userAddr) ?? 0),
+        );
+      } else {
+        acc.set(cur.userAddr, this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY));
+      }
+      return acc;
+    }, new Map<string, BigNumber>());
+
+    // convert removeLiquidityEvents to map
+    const userRemoveLiquidities = removeLiquidityEvents.reduce((acc, cur) => {
+      if (acc.has(cur.userAddr)) {
+        acc.set(
+          cur.userAddr,
+          new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).negated().plus(acc.get(cur.userAddr) ?? 0),
+        );
+      } else {
+        acc.set(cur.userAddr, new BigNumber(this.#getTokenInUSD(cur.tokenX, cur.tokenY, cur.amountX, cur.amountY)).negated());
+      }
+      return acc;
+    }, new Map<string, BigNumber>());
+
+    // merge two arrays
+    const userLiquidities = this.#mergeMaps(userAddLiquidities, userRemoveLiquidities);
+
+    // delete original data
+    txs.push(this.prisma.userCurrentLPAmount.deleteMany({}));
+    const lpArray = Array.from(userLiquidities.keys()).map((userAddr) => {
+      const amount = (userLiquidities.get(userAddr) ?? new BigNumber(0)).toFixed(6);
+      return {
+        id: 0,
+        userAddr: userAddr,
+        amount: amount,
+      };
+    });
+    txs.push(
+      this.prisma.userCurrentLPAmount.createMany({
+        data: lpArray,
+      }),
+    );
+
+    // @ts-expect-error ts(2024)
+    await retry(this.prisma.$transaction, this.retryTimes, this.retryInterval, this.prisma, txs);
+    Logger.log(`cleanUserCredit ${started}-${ended} success`, 'Statistics');
   }
 }
