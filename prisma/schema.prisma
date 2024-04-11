@@ -30,27 +30,29 @@ model BridgeEvent {
 }
 
 model AddLiquidityEvent {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   timestamp Int
-  userAddr  String @map("user_addr")
-  tokenX    String @map("token_x")
-  tokenY    String @map("token_y")
-  amountX   String @map("amount_x")
-  amountY   String @map("amount_y")
-  eventId   String @unique @map("event_id")
+  userAddr  String  @map("user_addr")
+  tokenX    String  @map("token_x")
+  tokenY    String  @map("token_y")
+  amountX   String  @map("amount_x")
+  amountY   String  @map("amount_y")
+  eventId   String  @unique @map("event_id")
+  valid     Boolean @default(false)
 
   @@map("add_liquidity_events")
 }
 
 model RemoveLiquidityEvent {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   timestamp Int
-  userAddr  String @map("user_addr")
-  tokenX    String @map("token_x")
-  tokenY    String @map("token_y")
-  amountX   String @map("amount_x")
-  amountY   String @map("amount_y")
-  eventId   String @unique @map("event_id")
+  userAddr  String  @map("user_addr")
+  tokenX    String  @map("token_x")
+  tokenY    String  @map("token_y")
+  amountX   String  @map("amount_x")
+  amountY   String  @map("amount_y")
+  eventId   String  @unique @map("event_id")
+  valid     Boolean @default(false)
 
   @@map("remove_liquidity_events")
 }

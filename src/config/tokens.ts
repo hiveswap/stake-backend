@@ -19,6 +19,7 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
   ['0xf14462d71b579d19c47f4e0eaf2c50c641be40b6', { tokenX: Tokens.MBTC, tokenY: Tokens.BTC }],
   ['0x44a89ecc5ef3485df877b5a3686001978e89745d', { tokenX: Tokens.MBTC, tokenY: Tokens.SolvBTC }],
   ['0xab72822e679da3297364b88f7a36563111cff4de', { tokenX: Tokens.MBTC, tokenY: Tokens.SolvBTC }],
+  ['0xf75be539716f114c5fe99a2d4e79225018fe1169', { tokenX: Tokens.USDT, tokenY: Tokens.SolvBTC }],
   ['0xa75856d47ee7fc8b45eaaf78aaefbf74acbdfe7e', { tokenX: Tokens.USDT, tokenY: Tokens.iUSD }],
   ['0x9a9a54da258cc872dd61a52c130540c9e256c314', { tokenX: Tokens.ETH, tokenY: Tokens.WMAPO }],
   ['0x3ddc9de7a05149c9aa40df3318a55f567de02173', { tokenX: Tokens.WMAPO, tokenY: Tokens.USDT }],
