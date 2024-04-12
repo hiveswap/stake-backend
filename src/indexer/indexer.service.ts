@@ -7,8 +7,14 @@ import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityE
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
-import { poolMap, Tokens } from 'src/config/tokens';
-import { BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER, SUPPORTED_BRIDGE_TOKENS } from '../config/config';
+import { newPoolMap, poolMap, Tokens } from 'src/config/tokens';
+import {
+  BRIDGE_POINT_PER_DOLLAR,
+  NEW_POOL_BLOCK,
+  START_BLOCK_NUMBER,
+  START_SYNC_BRIDGE_BLOCK_NUMBER,
+  SUPPORTED_BRIDGE_TOKENS,
+} from '../config/config';
 import { BridgeABI } from '../resources/abis/bridge';
 import { prices } from '../config/price';
 import { BRIDGE_ADDRESS } from '../config/contracts';
@@ -263,15 +269,15 @@ export class IndexerService {
         const events: AddLiquidityEvent[] = [];
         for (let i = 0; i < logs.length; i++) {
           const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
-          if (!poolMap.has(parsed.pool.toLowerCase())) {
+          if (!poolMap.has(parsed.pool.toLowerCase()) && logs[i].blockNumber < NEW_POOL_BLOCK) {
             continue;
           }
           const timestamp = (await logs[i].getBlock()).timestamp;
 
           const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
           const user = tx.from;
-          const tokenX = poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
-          const tokenY = poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
+          const tokenX = newPoolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
+          const tokenY = newPoolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
           events.push({
             id: 0,
             timestamp: timestamp,
@@ -318,14 +324,14 @@ export class IndexerService {
         for (let i = 0; i < logs.length; i++) {
           const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
 
-          if (!poolMap.has(parsed.pool.toLowerCase())) {
+          if (!poolMap.has(parsed.pool.toLowerCase()) && logs[i].blockNumber < NEW_POOL_BLOCK) {
             continue;
           }
           const timestamp = (await logs[i].getBlock()).timestamp;
           const tx = await retry(logs[i].getTransaction, this.retryTimes, this.retryInterval, logs[i]);
           const user = tx.from;
-          const tokenX = poolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
-          const tokenY = poolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
+          const tokenX = newPoolMap.get(parsed.pool.toLowerCase())?.tokenX.address ?? '';
+          const tokenY = newPoolMap.get(parsed.pool.toLowerCase())?.tokenY.address ?? '';
           events.push({
             id: 0,
             timestamp: timestamp,
