@@ -12,6 +12,8 @@ export const Tokens = {
   STMAPO: { address: '0x9bd1e0a3a727d0d4f4e9a6d59022e071ddc79924', symbol: 'stMAPO' },
   STST: { address: '0xf5a59f961a8e86285dae2e45ac4ae50e4e47ba97', symbol: 'STST' },
   ROUP: { address: '0x5a1c3f3aae616146c7b9bf9763e0aba9bafc5eae', symbol: 'ROUP' },
+  FOX2: { address: '0x1ddecb7126028ea347408edef9d218f74b226d22', symbol: 'FOX2' },
+  EEAA: { address: '0x040a66ed7def1c037c5c9848bc5d44dcd3b0fc62', symbol: 'EEAA' },
 };
 
 export const poolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> = new Map([
@@ -30,6 +32,13 @@ export const poolMap: Map<string, { tokenX: { address: string; symbol: string };
   ['0x68f6898102dc74adf1bc0078fbe6447fb1b7f419', { tokenX: Tokens.WMAPO, tokenY: Tokens.LSGS }],
 ]);
 
+export const newPoolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> =
+  new Map([
+    ...poolMap,
+    ['0xfd12ba2bb838886743b1b7fd287909ee11541e31', { tokenX: Tokens.WMAPO, tokenY: Tokens.FOX2 }],
+    ['0x1e468938d516b934aacdbe503e2afd5c5a1b8490', { tokenX: Tokens.EEAA, tokenY: Tokens.WMAPO }],
+  ]);
+
 export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   [Tokens.WMAPO.address, new BigNumber(0.031)],
   [Tokens.BTC.address, new BigNumber(66611)],
@@ -42,4 +51,6 @@ export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   [Tokens.ROUP.address, new BigNumber(0.0023332)],
   [Tokens.STST.address, new BigNumber(0.05495)],
   [Tokens.LSGS.address, new BigNumber(0.000151)],
+  [Tokens.FOX2.address, new BigNumber(0.02532)],
+  [Tokens.EEAA.address, new BigNumber(0.000134)],
 ]);
