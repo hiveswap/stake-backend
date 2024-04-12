@@ -6,6 +6,7 @@ import { IndexerModule } from './indexer/indexer.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RankModule } from './rank/rank.module';
+import { GalxeModule } from './galxe/galxe.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RankModule } from './rank/rank.module';
     IndexerModule,
     ScheduleModule.forRoot(),
     RankModule,
+    GalxeModule,
   ],
   controllers: [AppController],
 })
