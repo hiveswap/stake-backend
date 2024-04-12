@@ -15,3 +15,5 @@ export const SUPPORTED_BRIDGE_TOKENS = [Tokens.BTC.address, Tokens.MBTC.address,
 
 // the pending one side stake time stamp
 export const PENDING_ONE_SIDE_STAKE_TIME = 1712160162;
+
+export const NEW_POOL_BLOCK = 11200000;
