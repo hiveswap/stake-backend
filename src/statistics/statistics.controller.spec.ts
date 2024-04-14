@@ -2,13 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StatisticsController } from './statistics.controller';
 import { GetUserPointsDTO, HistoryCreditDto } from './dto/credit.dto';
 import { PrismaService } from '../prisma.service';
-import { DateTime } from 'luxon';
 
 describe('StatisticsController', () => {
   let appController: StatisticsController;
   const mockData = {
-    timestamp: DateTime.fromISO('2024-03-25T03:50:10.010Z').toJSDate(),
-    curCredit: 10000,
+    point: 10000,
+    hivePoint: 0,
+    mapoPoint: 0,
   };
 
   beforeEach(async () => {
