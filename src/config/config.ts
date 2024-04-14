@@ -14,6 +14,4 @@ export const BRIDGE_POINT_PER_DOLLAR = new BigNumber(0.04);
 export const SUPPORTED_BRIDGE_TOKENS = [Tokens.BTC.address, Tokens.MBTC.address, Tokens.SolvBTC.address, Tokens.iUSD.address];
 
 // the pending one side stake time stamp
-export const PENDING_ONE_SIDE_STAKE_TIME = 1712160162;
-
-export const NEW_POOL_BLOCK = 11200000;
+export const NEW_RULE_VALID_TIME = 1713132000;

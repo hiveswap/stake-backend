@@ -4,7 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import configurations from 'src/config/configurations';
 import BigNumber from 'bignumber.js';
 import { Prisma } from '@prisma/client';
-import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR, PENDING_ONE_SIDE_STAKE_TIME } from '../config/config';
+import { P_POINT_EPOLL_START_TIME, P_POINT_PER_HOUR, NEW_RULE_VALID_TIME } from '../config/config';
 import { tokenAddrToPrice } from 'src/config/tokens';
 import { retry } from 'src/utils/retry';
 
@@ -58,7 +58,7 @@ export class StatisticsService {
           break;
         }
         // reset user lp token value table when the right tick is greater than PENDING_ONE_SIDE_STAKE_TIME
-        if (rightTick >= PENDING_ONE_SIDE_STAKE_TIME && !this.cleanedCredit) {
+        if (rightTick >= NEW_RULE_VALID_TIME && !this.cleanedCredit) {
           await retry(this.#cleanUserCredit, this.retryTimes, this.retryInterval, this, started, rightTick);
           this.cleanedCredit = true;
         }
@@ -237,7 +237,11 @@ export class StatisticsService {
       return res;
     }
     for (const [key, value] of map2) {
-      res.set(key, (res.get(key) ?? new BigNumber(0)).plus(value));
+      let v = (res.get(key) ?? new BigNumber(0)).plus(value);
+      if (v.isNegative()) {
+        v = new BigNumber(0);
+      }
+      res.set(key, v);
     }
     return res;
   }

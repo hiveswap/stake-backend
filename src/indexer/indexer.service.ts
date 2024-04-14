@@ -7,14 +7,8 @@ import { AddLiquidityEvent, BridgeEvent, Prisma, PrismaPromise, RemoveLiquidityE
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import configurations from '../config/configurations';
 import { DateTime } from 'luxon';
-import { newPoolMap, poolMap, Tokens } from 'src/config/tokens';
-import {
-  BRIDGE_POINT_PER_DOLLAR,
-  NEW_POOL_BLOCK,
-  START_BLOCK_NUMBER,
-  START_SYNC_BRIDGE_BLOCK_NUMBER,
-  SUPPORTED_BRIDGE_TOKENS,
-} from '../config/config';
+import { newPoolMap, Tokens } from 'src/config/tokens';
+import { BRIDGE_POINT_PER_DOLLAR, START_BLOCK_NUMBER, START_SYNC_BRIDGE_BLOCK_NUMBER, SUPPORTED_BRIDGE_TOKENS } from '../config/config';
 import { BridgeABI } from '../resources/abis/bridge';
 import { prices } from '../config/price';
 import { BRIDGE_ADDRESS } from '../config/contracts';
@@ -269,7 +263,7 @@ export class IndexerService {
         const events: AddLiquidityEvent[] = [];
         for (let i = 0; i < logs.length; i++) {
           const parsed = this.liquidityContract.interface.decodeEventLog(addLiquidityTopic, logs[i].data, logs[i].topics);
-          if (!poolMap.has(parsed.pool.toLowerCase()) && logs[i].blockNumber < NEW_POOL_BLOCK) {
+          if (!newPoolMap.has(parsed.pool.toLowerCase())) {
             continue;
           }
           const timestamp = (await logs[i].getBlock()).timestamp;
@@ -324,7 +318,7 @@ export class IndexerService {
         for (let i = 0; i < logs.length; i++) {
           const parsed = this.liquidityContract.interface.decodeEventLog(decLiquidityTopic, logs[i].data, logs[i].topics);
 
-          if (!poolMap.has(parsed.pool.toLowerCase()) && logs[i].blockNumber < NEW_POOL_BLOCK) {
+          if (!newPoolMap.has(parsed.pool.toLowerCase())) {
             continue;
           }
           const timestamp = (await logs[i].getBlock()).timestamp;
@@ -341,12 +335,7 @@ export class IndexerService {
             amountX: parsed.amountX.toString(),
             amountY: parsed.amountY.toString(),
             eventId: tx.hash + '-' + logs[i].index,
-            valid: this.#isValidOneSideStake({
-              tokenX: tokenX,
-              tokenY: tokenY,
-              amountX: parsed.amountX.toString(),
-              amountY: parsed.amountY.toString(),
-            }),
+            valid: true,
           });
         }
         resolve(events);
@@ -372,14 +361,14 @@ export class IndexerService {
     // if tokenX stake 0
     if (event.amountX === '0') {
       // then tokenY must be in active token list, and tokenY must not be 0
-      if (event.tokenY in activeTokenList && event.tokenY !== '0') {
+      if (event.tokenY.toLowerCase() in activeTokenList && event.tokenY !== '0') {
         return true;
       }
     }
     // if tokenY stake 0
     if (event.amountY === '0') {
       // then tokenX must be in active token list, and tokenX must not be 0
-      if (event.tokenX in activeTokenList && event.tokenX !== '0') {
+      if (event.tokenX.toLowerCase() in activeTokenList && event.tokenX !== '0') {
         return true;
       }
     }
