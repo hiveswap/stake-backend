@@ -335,7 +335,12 @@ export class IndexerService {
             amountX: parsed.amountX.toString(),
             amountY: parsed.amountY.toString(),
             eventId: tx.hash + '-' + logs[i].index,
-            valid: true,
+            valid: this.#isValidOneSideStake({
+              tokenX: tokenX,
+              tokenY: tokenY,
+              amountX: parsed.amountX.toString(),
+              amountY: parsed.amountY.toString(),
+            }),
           });
         }
         resolve(events);

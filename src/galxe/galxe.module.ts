@@ -2,6 +2,6 @@ import { Module } from '@nestjs/common';
 import { GalxeController } from './galxe.controller';
 
 @Module({
-  controllers: [GalxeController]
+  controllers: [GalxeController],
 })
 export class GalxeModule {}
