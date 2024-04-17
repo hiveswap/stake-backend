@@ -1,5 +1,4 @@
-import { Controller, Get, Body } from '@nestjs/common';
-import { GetUserPointsDTO } from './dto/point.dto';
+import { Controller, Get, Param } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import BigNumber from 'bignumber.js';
 
@@ -10,9 +9,9 @@ export class TrustaController {
     this.graphqlUrl = 'https://graph-node-api.izumi.finance/query/subgraphs/name/izi-swap-map';
   }
 
-  @Get('point')
-  async getPoint(@Body() params: GetUserPointsDTO) {
-    let data = `query MyQuery($addr: Bytes = "${params.user}") {
+  @Get('point/:address')
+  async getPoint(@Param('address') params: string) {
+    let data = `query MyQuery($addr: Bytes = "${params}") {
         swaps(where: {account: $addr, timestamp_gte: "1712361600"}) {
             amountUSD
         }
@@ -28,7 +27,7 @@ export class TrustaController {
     }, new BigNumber(0));
     const swapPoint = this.getPointBySwap(swapTotal);
 
-    data = `query MyQuery($addr: Bytes = "${params.user}") {
+    data = `query MyQuery($addr: Bytes = "${params}") {
         liquidities(where: {owner: $addr}) {
           depositedTokenX
           depositedTokenY
