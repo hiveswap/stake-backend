@@ -14,6 +14,7 @@ export const Tokens = {
   ROUP: { address: '0x5a1c3f3aae616146c7b9bf9763e0aba9bafc5eae', symbol: 'ROUP' },
   FOX2: { address: '0x1ddecb7126028ea347408edef9d218f74b226d22', symbol: 'FOX2' },
   EEAA: { address: '0x040a66ed7def1c037c5c9848bc5d44dcd3b0fc62', symbol: 'EEAA' },
+  MERL: { address: '0xbe5331d2c6fbf1799ac3bff6f7cc606cefb816d8', symbol: 'MERL' },
 };
 
 export const poolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> = new Map([
@@ -53,4 +54,5 @@ export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   [Tokens.LSGS.address, new BigNumber(0.000151)],
   [Tokens.FOX2.address, new BigNumber(0.02532)],
   [Tokens.EEAA.address, new BigNumber(0.000134)],
+  [Tokens.MERL.address, new BigNumber(1.3)],
 ]);

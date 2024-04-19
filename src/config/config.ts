@@ -11,7 +11,13 @@ export const START_SYNC_BRIDGE_BLOCK_NUMBER = 11044351;
 
 export const BRIDGE_POINT_PER_DOLLAR = new BigNumber(0.04);
 
-export const SUPPORTED_BRIDGE_TOKENS = [Tokens.BTC.address, Tokens.MBTC.address, Tokens.SolvBTC.address, Tokens.iUSD.address];
+export const SUPPORTED_BRIDGE_TOKENS = [
+  Tokens.BTC.address,
+  Tokens.MBTC.address,
+  Tokens.SolvBTC.address,
+  Tokens.iUSD.address,
+  Tokens.MERL.address,
+];
 
 // the pending one side stake time stamp
 export const NEW_RULE_VALID_TIME = 1713132000;
