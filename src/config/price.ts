@@ -5,4 +5,5 @@ export const prices: any = {
   [Tokens.BTC.address]: 66611,
   [Tokens.SolvBTC.address]: 66611,
   [Tokens.iUSD.address]: 1,
+  [Tokens.MERL.address]: 1.3,
 };
