@@ -16,7 +16,7 @@ describe('TrustaController', () => {
 
   it('should be defined', async () => {
     const addr = '0x9cAdb2D7a2c33d49A31f1168a40Bf21871cE7106';
-    const res = await controller.getPoint({ user: addr });
+    const res = await controller.getPoint(addr);
     console.log(res);
   });
 });
