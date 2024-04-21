@@ -362,18 +362,18 @@ export class IndexerService {
   // check if a tx is a valid one side stake tx
   #isValidOneSideStake(event: { tokenX: string; tokenY: string; amountX: string; amountY: string }): boolean {
     // active token list, including btc, mbtc, solvbtc
-    const activeTokenList = [Tokens.BTC, Tokens.MBTC, Tokens.SolvBTC];
+    const activeTokenList = [Tokens.BTC.address, Tokens.MBTC.address, Tokens.SolvBTC.address];
     // if tokenX stake 0
     if (event.amountX === '0') {
       // then tokenY must be in active token list, and tokenY must not be 0
-      if (event.tokenY.toLowerCase() in activeTokenList && event.tokenY !== '0') {
+      if (activeTokenList.includes(event.tokenY.toLowerCase()) && event.tokenY !== '0') {
         return true;
       }
     }
     // if tokenY stake 0
     if (event.amountY === '0') {
       // then tokenX must be in active token list, and tokenX must not be 0
-      if (event.tokenX.toLowerCase() in activeTokenList && event.tokenX !== '0') {
+      if (activeTokenList.includes(event.tokenX.toLowerCase()) && event.tokenX !== '0') {
         return true;
       }
     }
