@@ -15,6 +15,8 @@ export const Tokens = {
   FOX2: { address: '0x1ddecb7126028ea347408edef9d218f74b226d22', symbol: 'FOX2' },
   EEAA: { address: '0x040a66ed7def1c037c5c9848bc5d44dcd3b0fc62', symbol: 'EEAA' },
   MERL: { address: '0xbe5331d2c6fbf1799ac3bff6f7cc606cefb816d8', symbol: 'MERL' },
+  MP: { address: '0x8e5b2e876243c7aC1922C6a19a9d6F6603408019', symbol: 'MP' },
+  MSTAR: { address: '0x9735452EAccc7a137742777AEAB595b0dEccaf36', symbol: 'MSTAR' },
 };
 
 export const poolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> = new Map([
