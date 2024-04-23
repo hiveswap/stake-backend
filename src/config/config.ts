@@ -17,6 +17,8 @@ export const SUPPORTED_BRIDGE_TOKENS = [
   Tokens.SolvBTC.address,
   Tokens.iUSD.address,
   Tokens.MERL.address,
+  Tokens.MP.address,
+  Tokens.MSTAR.address,
 ];
 
 // the pending one side stake time stamp
