@@ -16,7 +16,7 @@ export const Tokens = {
   EEAA: { address: '0x040a66ed7def1c037c5c9848bc5d44dcd3b0fc62', symbol: 'EEAA' },
   MERL: { address: '0xbe5331d2c6fbf1799ac3bff6f7cc606cefb816d8', symbol: 'MERL' },
   MP: { address: '0x8e5b2e876243c7aC1922C6a19a9d6F6603408019', symbol: 'MP' },
-  MSTAR: { address: '0x9735452EAccc7a137742777AEAB595b0dEccaf36', symbol: 'MSTAR' },
+  MSTAR: { address: '0x9735452eaccc7a137742777aeab595b0deccaf36', symbol: 'MSTAR' },
   MIRK: { address: '0x8dfaad2ecd2a46e892a1f5b76ba5a0571014abfd', symbol: 'MIRK' },
 };
 
