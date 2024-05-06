@@ -73,7 +73,7 @@ export class IndexerService {
 
     const bridgeTopic = this.bridgeContract.interface.getEvent('mapSwapIn');
     if (!bridgeTopic) {
-      throw new Error('DecLiquidity event not found');
+      throw new Error('Bridge event not found');
     }
 
     while (true) {

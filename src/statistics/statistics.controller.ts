@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service';
 import configurations from '../config/configurations';
 import { GetUserPointsDTO, HistoryCreditDto } from './dto/credit.dto';
 import { AuthGuard } from '../auth/auth.guard';
+import BigNumber from 'bignumber.js';
 
 @Controller('statistics')
 export class StatisticsController {
@@ -82,10 +83,11 @@ export class StatisticsController {
         point: true,
       },
     });
+    const scale = params.from === 'okx' ? new BigNumber(1.5) : new BigNumber(1);
     return {
       hivePoint: res?.hivePoint ?? 0,
       mapoPoint: res?.mapoPoint ?? 0,
-      point: res?.point ?? 0,
+      point: new BigNumber(res?.point.toNumber() ?? 0).multipliedBy(scale).toFixed(6),
     };
   }
 }

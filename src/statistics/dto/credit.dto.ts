@@ -5,6 +5,8 @@ export class GetUserPointsDTO {
   @ApiProperty()
   @IsEthereumAddress()
   user: string;
+  @ApiProperty()
+  from: string;
 }
 
 export class HistoryCreditDto {
