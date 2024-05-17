@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import BigNumber from 'bignumber.js';
 import { readFileSync } from 'fs';
 import { basename, dirname } from 'path';
+import { HistorySwapData } from './history';
 
 @Controller('trusta')
 export class TrustaController {
@@ -28,10 +29,10 @@ export class TrustaController {
     const pageSize = 1000;
     let round = 1;
     let flag = true;
-    const res = new Map();
+    const res = new Map(Object.entries(HistorySwapData.data));
     while (flag) {
       const data = `query MyQuery {
-        swaps (first: ${pageSize}, skip: ${(round - 1) * pageSize}) {
+        swaps (first: ${pageSize}, skip: ${(round - 1) * pageSize + 101998}, orderDirection: asc, orderBy: timestamp) {
           amountUSD
           account
         }
@@ -51,13 +52,18 @@ export class TrustaController {
       round++;
     }
     const finalRes = res;
-    const filter = this.getRobot();
+    // const filter = this.getRobot();
+    const filter = new Map<any, any>();
     finalRes.forEach((_, key) => {
       if (filter.has(key)) {
         finalRes.delete(key);
       }
     });
-    return finalRes;
+    return {
+      totalUser: finalRes.size,
+      description: 'total swap record, (user address, swap amount(USD))',
+      data: Object.fromEntries(finalRes),
+    };
   }
 
   @Get('point/:address')
