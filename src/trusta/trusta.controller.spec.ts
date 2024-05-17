@@ -14,9 +14,16 @@ describe('TrustaController', () => {
     controller = app.get<TrustaController>(TrustaController);
   });
 
-  it('should be defined', async () => {
+  it('should get point', async () => {
     const addr = '0x9cAdb2D7a2c33d49A31f1168a40Bf21871cE7106';
     const res = await controller.getPoint(addr);
+    console.log(res);
+  });
+
+  it('should get swap record', async () => {
+    const robot = controller.getRobot();
+    expect(robot.size).toBeGreaterThan(0);
+    const res = await controller.getSwapMap();
     console.log(res);
   });
 });
