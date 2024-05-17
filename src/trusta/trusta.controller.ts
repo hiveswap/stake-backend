@@ -4,6 +4,8 @@ import BigNumber from 'bignumber.js';
 import { readFileSync } from 'fs';
 import { basename, dirname } from 'path';
 import { HistorySwapData } from './history';
+import { HistorySwapV3Data } from './history-v3';
+import { HistorySwapV2Data } from './history-v2';
 
 @Controller('trusta')
 export class TrustaController {
@@ -24,12 +26,120 @@ export class TrustaController {
     return rotbotMap;
   }
 
+  @Get('point/swap-records-v2')
+  async getSwapMapV2() {
+    const pageSize = 1000;
+    let round = 1;
+    let flag = true;
+    const res = new Map();
+    while (flag) {
+      const data = `query MyQuery {
+        swaps (first: ${pageSize}, skip: ${(round - 1) * pageSize}, orderDirection: asc, orderBy: timestamp) {
+          amountUSD
+          from
+        }
+      }`;
+      const response = await this.httpService.axiosRef.post('https://makalu-graph.maplabs.io/subgraphs/name/map/hiveswap2', {
+        operationName: 'MyQuery',
+        query: data,
+        timeout: 20000,
+      });
+      console.log(response);
+      const swaps: { from: string; amountUSD: string }[] = response.data.data.swaps;
+      console.log(round * pageSize, swaps.length);
+      swaps.forEach((record) => {
+        const before = res.get(record.from) ?? 0;
+        res.set(record.from.toLowerCase(), before + Number(record.amountUSD));
+      });
+      if (swaps.length < pageSize) {
+        flag = false;
+      }
+      if (round > 150) {
+        flag = false;
+      }
+      round++;
+    }
+    const finalRes = res;
+    // const filter = this.getRobot();
+    const filter = new Map<any, any>();
+    finalRes.forEach((_, key) => {
+      if (filter.has(key)) {
+        finalRes.delete(key);
+      }
+    });
+    return {
+      totalUser: finalRes.size,
+      description: 'total swap record, (user address, swap amount(USD))',
+      data: Object.fromEntries(finalRes),
+    };
+  }
+
+  @Get('point/swap-records-v3')
+  async getSwapMapV3() {
+    const pageSize = 1000;
+    let round = 1;
+    let flag = true;
+    const res = new Map();
+    while (flag) {
+      const data = `query MyQuery {
+        swaps (first: ${pageSize}, skip: ${(round - 1) * pageSize}, orderDirection: asc, orderBy: timestamp) {
+          amountUSD
+          recipient
+        }
+      }`;
+      const response = await this.httpService.axiosRef.post('https://graph.mapprotocol.io/subgraphs/name/hiveswap/exchange-v3-test', {
+        operationName: 'MyQuery',
+        query: data,
+      });
+      console.log(response);
+      const swaps: { recipient: string; amountUSD: string }[] = response.data.data.swaps;
+      console.log(round * pageSize, swaps.length);
+      swaps.forEach((record) => {
+        const before = res.get(record.recipient) ?? 0;
+        res.set(record.recipient.toLowerCase(), before + Number(record.amountUSD));
+      });
+      if (swaps.length < pageSize) {
+        flag = false;
+      }
+      round++;
+    }
+    const finalRes = res;
+    // const filter = this.getRobot();
+    const filter = new Map<any, any>();
+    finalRes.forEach((_, key) => {
+      if (filter.has(key)) {
+        finalRes.delete(key);
+      }
+    });
+    return {
+      totalUser: finalRes.size,
+      description: 'total swap record, (user address, swap amount(USD))',
+      data: Object.fromEntries(finalRes),
+    };
+  }
+
   @Get('point/swap-records')
   async getSwapMap() {
     const pageSize = 1000;
     let round = 1;
     let flag = true;
     const res = new Map(Object.entries(HistorySwapData.data));
+    const v2Res = new Map(Object.entries(HistorySwapV2Data.data));
+    const v3Res = new Map(Object.entries(HistorySwapV3Data.data));
+    for (const [key, value] of v3Res) {
+      if (res.has(key)) {
+        res.set(key, res.get(key)! + value);
+      } else {
+        res.set(key, value);
+      }
+    }
+    for (const [key, value] of v2Res) {
+      if (res.has(key)) {
+        res.set(key, res.get(key)! + value);
+      } else {
+        res.set(key, value);
+      }
+    }
     while (flag) {
       const data = `query MyQuery {
         swaps (first: ${pageSize}, skip: ${(round - 1) * pageSize + 101998}, orderDirection: asc, orderBy: timestamp) {
