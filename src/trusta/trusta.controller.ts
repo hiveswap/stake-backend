@@ -118,6 +118,43 @@ export class TrustaController {
     };
   }
 
+  @Get('point/lp-records')
+  async getLPMap() {
+    const pageSize = 1000;
+    let round = 1;
+    let flag = true;
+    const res = new Map();
+
+    while (flag) {
+      const data = `query MyQuery {
+        mints (first: ${pageSize}, skip: ${(round - 1) * pageSize}, orderDirection: asc, orderBy: timestamp) {
+          amountUSD
+          account
+        }
+      }`;
+      const response = await this.httpService.axiosRef.post(this.graphqlUrl, {
+        operationName: 'MyQuery',
+        query: data,
+      });
+      console.log(response);
+      const mints: { account: string; amountUSD: string }[] = response.data.data.mints;
+      mints.forEach((record) => {
+        const before = res.get(record.account) ?? 0;
+        res.set(record.account.toLowerCase(), before + Number(record.amountUSD));
+      });
+      if (mints.length < pageSize) {
+        flag = false;
+      }
+      round++;
+    }
+    const finalRes = res;
+    return {
+      totalUser: finalRes.size,
+      description: 'total lp record, (user address, lp amount(USD))',
+      data: Object.fromEntries(finalRes),
+    };
+  }
+
   @Get('point/swap-records')
   async getSwapMap() {
     const pageSize = 1000;
