@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Query, UseGuards, Param } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service';
 import configurations from '../config/configurations';
@@ -89,5 +89,19 @@ export class StatisticsController {
       mapoPoint: res?.mapoPoint ?? 0,
       point: new BigNumber(res?.point.toNumber() ?? 0).multipliedBy(scale).toFixed(6),
     };
+  }
+
+  @Get('point_history/:address')
+  async getHistory(@Param('address') address: string) {
+    return await this.prisma.pointHistory.findMany({
+      where: {
+        userAddr: address,
+      },
+      select: {
+        userAddr: true,
+        epollId: true,
+        point: true,
+      },
+    });
   }
 }
