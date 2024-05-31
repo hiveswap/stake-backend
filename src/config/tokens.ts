@@ -18,6 +18,7 @@ export const Tokens = {
   MP: { address: '0x8e5b2e876243c7aC1922C6a19a9d6F6603408019', symbol: 'MP' },
   MSTAR: { address: '0x9735452eaccc7a137742777aeab595b0deccaf36', symbol: 'MSTAR' },
   MIRK: { address: '0x8dfaad2ecd2a46e892a1f5b76ba5a0571014abfd', symbol: 'MIRK' },
+  HIVP: { address: '0x69c43364667cf6279016bbec76445174c78f142d', symbol: 'HIVP' },
 };
 
 export const poolMap: Map<string, { tokenX: { address: string; symbol: string }; tokenY: { address: string; symbol: string } }> = new Map([
@@ -42,6 +43,7 @@ export const newPoolMap: Map<string, { tokenX: { address: string; symbol: string
     ['0xfd12ba2bb838886743b1b7fd287909ee11541e31', { tokenX: Tokens.WMAPO, tokenY: Tokens.FOX2 }],
     ['0x1e468938d516b934aacdbe503e2afd5c5a1b8490', { tokenX: Tokens.EEAA, tokenY: Tokens.WMAPO }],
     ['0x65058680e027b15d8c11c8ebc68e98745af3de9b', { tokenX: Tokens.WMAPO, tokenY: Tokens.MIRK }],
+    ['0xd375cc6d164e86beda49042bffd8edd9c66bbf77', { tokenX: Tokens.WMAPO, tokenY: Tokens.HIVP }],
   ]);
 
 export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
@@ -60,4 +62,5 @@ export const tokenAddrToPrice: Map<string, BigNumber> = new Map([
   [Tokens.EEAA.address, new BigNumber(0.000134)],
   [Tokens.MERL.address, new BigNumber(1.3)],
   [Tokens.MIRK.address, new BigNumber(0.048)],
+  [Tokens.HIVP.address, new BigNumber(0.06325)],
 ]);
