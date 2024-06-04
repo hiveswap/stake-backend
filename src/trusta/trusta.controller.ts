@@ -6,11 +6,16 @@ import { basename, dirname } from 'path';
 import { HistorySwapData } from './history';
 import { HistorySwapV3Data } from './history-v3';
 import { HistorySwapV2Data } from './history-v2';
+import { TrustaService } from './trusta.service';
 
 @Controller('trusta')
 export class TrustaController {
   graphqlUrl: string;
-  constructor(private readonly httpService: HttpService) {
+
+  constructor(
+    private readonly httpService: HttpService,
+    private trustaService: TrustaService,
+  ) {
     this.graphqlUrl = 'https://graph-node-api.izumi.finance/query/subgraphs/name/izi-swap-map';
   }
 
@@ -120,38 +125,27 @@ export class TrustaController {
 
   @Get('point/lp-records')
   async getLPMap() {
-    const pageSize = 1000;
-    let round = 1;
-    let flag = true;
-    const res = new Map();
-
-    while (flag) {
-      const data = `query MyQuery {
-        mints (first: ${pageSize}, skip: ${(round - 1) * pageSize}, orderDirection: asc, orderBy: timestamp) {
-          amountUSD
-          account
-        }
-      }`;
-      const response = await this.httpService.axiosRef.post(this.graphqlUrl, {
-        operationName: 'MyQuery',
-        query: data,
-      });
-      console.log(response);
-      const mints: { account: string; amountUSD: string }[] = response.data.data.mints;
-      mints.forEach((record) => {
-        const before = res.get(record.account) ?? 0;
-        res.set(record.account.toLowerCase(), before + Number(record.amountUSD));
-      });
-      if (mints.length < pageSize) {
-        flag = false;
+    const proRes = await this.trustaService.getLPRecordsPro(this.httpService);
+    const v3Res = await this.trustaService.getLPRecordsV3(this.httpService);
+    const v2Res = await this.trustaService.getLPRecordsV2(this.httpService);
+    for (const [key, value] of v3Res) {
+      if (proRes.has(key)) {
+        proRes.set(key, proRes.get(key)! + value);
+      } else {
+        proRes.set(key, value);
       }
-      round++;
     }
-    const finalRes = res;
+    for (const [key, value] of v2Res) {
+      if (proRes.has(key)) {
+        proRes.set(key, proRes.get(key)! + value);
+      } else {
+        proRes.set(key, value);
+      }
+    }
     return {
-      totalUser: finalRes.size,
+      totalUser: proRes.size,
       description: 'total lp record, (user address, lp amount(USD))',
-      data: Object.fromEntries(finalRes),
+      data: Object.fromEntries(proRes),
     };
   }
 

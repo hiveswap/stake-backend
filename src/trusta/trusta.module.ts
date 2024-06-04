@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TrustaController } from './trusta.controller';
 import { HttpModule } from '@nestjs/axios';
+import { TrustaService } from './trusta.service';
 
 @Module({
   controllers: [TrustaController],
@@ -10,5 +11,6 @@ import { HttpModule } from '@nestjs/axios';
       maxRedirects: 5,
     }),
   ],
+  providers: [TrustaService],
 })
 export class TrustaModule {}
