@@ -54,7 +54,8 @@ export class StatisticsService {
       const timeGap = 60 * 60;
       for (let i = started; i < ended; i = i + timeGap) {
         const rightTick = i + timeGap;
-        if (rightTick > ended) {
+        if (rightTick > ended || rightTick > 1717341956) {
+          Logger.log('Handle point history ended', 'StatisticsService');
           break;
         }
         // reset user lp token value table when the right tick is greater than PENDING_ONE_SIDE_STAKE_TIME
