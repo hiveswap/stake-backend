@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import BigNumber from 'bignumber.js';
 import { readFileSync } from 'fs';
@@ -7,16 +7,33 @@ import { HistorySwapData } from './history';
 import { HistorySwapV3Data } from './history-v3';
 import { HistorySwapV2Data } from './history-v2';
 import { TrustaService } from './trusta.service';
+import { Merkle } from './merkle';
 
 @Controller('trusta')
 export class TrustaController {
   graphqlUrl: string;
+  merkleM: Map<string, any>;
 
   constructor(
     private readonly httpService: HttpService,
     private trustaService: TrustaService,
   ) {
     this.graphqlUrl = 'https://graph-node-api.izumi.finance/query/subgraphs/name/izi-swap-map';
+    console.log();
+    this.merkleM = new Map(Object.entries(Merkle.claims));
+  }
+
+  @Get('merkle/:address')
+  async getAirdropMerkle(@Query('address') address: string) {
+    const claim = this.merkleM.get(address.toLowerCase());
+    const index = BigInt(claim?.index ?? 0n);
+    const amount = BigInt(claim?.amount ?? 0n);
+    const proof = claim?.proof ?? [''];
+    return {
+      index,
+      amount,
+      proof,
+    };
   }
 
   getRobot() {
