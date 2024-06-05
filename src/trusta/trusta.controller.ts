@@ -24,7 +24,8 @@ export class TrustaController {
   }
 
   @Get('merkle/:address')
-  async getAirdropMerkle(@Query('address') address: string) {
+  async getAirdropMerkle(@Param('address') address: string) {
+    console.log(address);
     const claim = this.merkleM.get(address.toLowerCase());
     const index = BigInt(claim?.index ?? 0n);
     const amount = BigInt(claim?.amount ?? 0n);
