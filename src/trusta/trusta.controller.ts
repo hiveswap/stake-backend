@@ -8,11 +8,13 @@ import { HistorySwapV3Data } from './history-v3';
 import { HistorySwapV2Data } from './history-v2';
 import { TrustaService } from './trusta.service';
 import { Merkle } from './merkle';
+import { Merkle16 } from './merkle-1-6';
 
 @Controller('trusta')
 export class TrustaController {
   graphqlUrl: string;
   merkleM: Map<string, any>;
+  merkle16M: Map<string, any>;
 
   constructor(
     private readonly httpService: HttpService,
@@ -21,20 +23,29 @@ export class TrustaController {
     this.graphqlUrl = 'https://graph-node-api.izumi.finance/query/subgraphs/name/izi-swap-map';
     console.log();
     this.merkleM = new Map(Object.entries(Merkle.claims));
+    this.merkle16M = new Map(Object.entries(Merkle16.claims));
   }
 
   @Get('merkle/:address')
   async getAirdropMerkle(@Param('address') address: string) {
     console.log(address);
     const claim = this.merkleM.get(address);
+    const claim16 = this.merkle16M.get(address);
     const index = claim?.index ?? -1;
     const amount = claim?.amount;
     const proof = claim?.proof ?? [''];
-    return {
-      index,
-      amount,
-      proof,
-    };
+    return [
+      {
+        index,
+        amount,
+        proof,
+      },
+      {
+        index: claim16?.index ?? -1,
+        amount: claim16?.amount,
+        proof: claim16?.proof ?? [''],
+      },
+    ];
   }
 
   getRobot() {
