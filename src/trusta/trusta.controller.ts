@@ -9,10 +9,12 @@ import { HistorySwapV2Data } from './history-v2';
 import { TrustaService } from './trusta.service';
 import { Merkle } from './merkle';
 import { Merkle16 } from './merkle-1-6';
+import { Claim } from './claim';
 
 @Controller('trusta')
 export class TrustaController {
   graphqlUrl: string;
+  claimM: Map<string, any>;
   merkleM: Map<string, any>;
   merkle16M: Map<string, any>;
 
@@ -22,8 +24,22 @@ export class TrustaController {
   ) {
     this.graphqlUrl = 'https://graph-node-api.izumi.finance/query/subgraphs/name/izi-swap-map';
     console.log();
+    this.claimM = new Map(Object.entries(Claim.claims));
     this.merkleM = new Map(Object.entries(Merkle.claims));
     this.merkle16M = new Map(Object.entries(Merkle16.claims));
+  }
+
+  @Get('claim/:address')
+  async getClaimMerkle(@Param('address') address: string) {
+    const claim = this.claimM.get(address);
+    const index = claim?.index ?? -1;
+    const amount = claim?.amount;
+    const proof = claim?.proof ?? [''];
+    return {
+      index,
+      amount,
+      proof,
+    };
   }
 
   @Get('merkle/:address')
