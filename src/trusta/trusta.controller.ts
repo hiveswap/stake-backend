@@ -66,6 +66,16 @@ export class TrustaController {
         amount: claim16?.amount,
         proof: claim16?.proof ?? [''],
       },
+      {
+        index: claim16?.index ?? -1,
+        amount: claim16?.amount,
+        proof: claim16?.proof ?? [''],
+      },
+      {
+        index: claim16?.index ?? -1,
+        amount: claim16?.amount,
+        proof: claim16?.proof ?? [''],
+      },
     ];
   }
 
