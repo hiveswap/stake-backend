@@ -7,6 +7,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { RankModule } from './rank/rank.module';
 import { GalxeModule } from './galxe/galxe.module';
 import { TrustaModule } from './trusta/trusta.module';
+import { AirdropModule } from './airdrop/airdrop.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TrustaModule } from './trusta/trusta.module';
     RankModule,
     GalxeModule,
     TrustaModule,
+    AirdropModule,
   ],
   controllers: [AppController],
 })
